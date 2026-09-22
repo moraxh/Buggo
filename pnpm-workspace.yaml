@@ -16,9 +16,17 @@ minimumReleaseAgeExclude: []
 # most supply-chain malware in npm packages runs via postinstall. Add to
 # this list only for a package whose install script you've checked and that
 # is known to need one (native addon builds, etc).
+# pnpm 11 replaced `onlyBuiltDependencies` with `allowBuilds`; both are kept
+# here so the config also works under pnpm 10.
 onlyBuiltDependencies:
   - esbuild
   - tree-sitter
   - tree-sitter-javascript
   - tree-sitter-python
   - tree-sitter-typescript
+allowBuilds:
+  esbuild: true
+  tree-sitter: true
+  tree-sitter-javascript: true
+  tree-sitter-python: true
+  tree-sitter-typescript: true
