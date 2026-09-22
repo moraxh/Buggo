@@ -6,6 +6,7 @@
 
 AI-native bug investigation for developers and coding agents.
 
+[![npm](https://img.shields.io/npm/v/%40moraxh%2Fbuggo?logo=npm)](https://www.npmjs.com/package/@moraxh/buggo)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Node >=22](https://img.shields.io/badge/node-%3E%3D22-339933?logo=node.js&logoColor=white)](package.json)
 [![pnpm](https://img.shields.io/badge/package%20manager-pnpm-f69220?logo=pnpm&logoColor=white)](https://pnpm.io)
@@ -51,21 +52,33 @@ This is real output from running `buggo investigate` against this repository (tr
 
 ## Quick start
 
-Buggo isn't on the npm registry yet (`buggo` is already taken by an unrelated package) — run it from source with [pnpm](https://pnpm.io):
+`buggo` (the bare name) is already taken by an unrelated package, so Buggo is published as [`@moraxh/buggo`](https://www.npmjs.com/package/@moraxh/buggo) — the installed command is still `buggo`:
+
+```bash
+npm install -g @moraxh/buggo
+buggo config set-key <your-openrouter-key>   # get one at openrouter.ai/keys
+buggo investigate "checkout fails when cart is empty" --repo /path/to/your/repo
+```
+
+`buggo config set-key` persists the key at `~/.config/buggo/config.json` (mode 600), so it works regardless of which directory you run `buggo` from afterward. A `JEV_AI_KEY` environment variable works too and takes priority.
+
+### Running from source
+
+For contributing, or to try a change before it's released — this repo uses [pnpm](https://pnpm.io):
 
 ```bash
 git clone https://github.com/moraxh/Buggo.git
 cd Buggo
 pnpm install
 cp .env.example .env
-# edit .env and set JEV_AI_KEY — an OpenRouter API key, get one at openrouter.ai/keys
+# edit .env and set JEV_AI_KEY
 ```
 
 ```bash
 pnpm run investigate "checkout fails when cart is empty" --repo /path/to/your/repo
 ```
 
-Or build once and use `buggo` as a normal command:
+Or build once and link it as a global `buggo` command pointing at your checkout:
 
 ```bash
 pnpm run build
@@ -126,7 +139,7 @@ Humans get suspects. Agents get JSON. Everybody reads fewer files.
 For programmatic use inside a larger tool, `investigate()` is the same entry point both the CLI and the MCP server call:
 
 ```ts
-import { investigate } from 'buggo';
+import { investigate } from '@moraxh/buggo';
 
 const result = await investigate({
   repoRoot: '.',

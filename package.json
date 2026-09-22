@@ -1,5 +1,5 @@
 {
-  "name": "buggo",
+  "name": "@moraxh/buggo",
   "version": "0.1.0",
   "description": "An AI-native bug investigator: narrows a repository down to the files most worth inspecting for a reported bug.",
   "main": "dist/index.js",
@@ -22,9 +22,20 @@
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test test/**/*.test.ts"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": ["bug", "debugging", "ai", "cli", "mcp", "localization", "agent"],
+  "author": "Jorge Mora",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/moraxh/Buggo.git"
+  },
+  "homepage": "https://github.com/moraxh/Buggo#readme",
+  "bugs": {
+    "url": "https://github.com/moraxh/Buggo/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.0",
     "dotenv": "17.4.2",
