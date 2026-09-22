@@ -1,6 +1,16 @@
-import { parse } from '@babel/parser';
-import traverseModule from '@babel/traverse';
-const traverse: typeof traverseModule = (traverseModule as any).default || traverseModule;
+/**
+ * Symbol extraction via tree-sitter, one grammar per language, behind the
+ * same FileSymbols contract the rest of the pipeline (scanner.ts, files.ts,
+ * functions.ts) already depends on - extractSymbols() is a drop-in
+ * replacement for the previous @babel/parser-based implementation, not a
+ * new API. Supports JS/JSX/TS/TSX (tree-sitter-javascript/-typescript) and
+ * Python (tree-sitter-python); an unsupported extension returns null, same
+ * as an unparseable file did before.
+ */
+import Parser from 'tree-sitter';
+import JavaScript from 'tree-sitter-javascript';
+import TypeScript from 'tree-sitter-typescript';
+import Python from 'tree-sitter-python';
 
 export type FunctionSymbol = {
   name: string;
@@ -15,131 +25,232 @@ export type FileSymbols = {
   classes: string[];
 };
 
-export function extractSymbols(code: string, relPath: string): FileSymbols | null {
-  const isTs = /\.tsx?$/.test(relPath);
-  const isJsx = /\.[jt]sx$/.test(relPath);
-  // Older/pre-TS codebases (e.g. vue-router circa Flow-era Vue 2) annotate
-  // plain .js files with Flow types (`/* @flow */`, `import type X`). The
-  // `typescript` and `flow` Babel plugins are mutually exclusive, so a .js
-  // file must be sniffed for Flow markers rather than assumed to be untyped.
-  const isFlow = !isTs && /^\s*\/\*\s*@flow\b|^\s*\/\/\s*@flow\b/m.test(code);
+type Language = 'js' | 'ts' | 'tsx' | 'py';
 
-  let ast;
-  try {
-    ast = parse(code, {
-      sourceType: 'unambiguous',
-      plugins: [
-        isTs ? 'typescript' : null,
-        isFlow ? 'flow' : null,
-        isJsx ? 'jsx' : null,
-        'classProperties',
-        'objectRestSpread',
-        'optionalChaining',
-        'nullishCoalescingOperator',
-        'dynamicImport',
-      ].filter(Boolean) as any,
-      errorRecovery: true,
-    });
-  } catch {
-    return null;
+function detectLanguage(relPath: string): Language | null {
+  if (/\.tsx$/.test(relPath)) return 'tsx';
+  if (/\.ts$/.test(relPath)) return 'ts';
+  if (/\.(js|jsx|mjs|cjs)$/.test(relPath)) return 'js';
+  if (/\.py$/.test(relPath)) return 'py';
+  return null;
+}
+
+function parserFor(lang: Language): Parser {
+  const parser = new Parser();
+  switch (lang) {
+    case 'js':
+      parser.setLanguage(JavaScript);
+      break;
+    case 'ts':
+      parser.setLanguage(TypeScript.typescript);
+      break;
+    case 'tsx':
+      parser.setLanguage(TypeScript.tsx);
+      break;
+    case 'py':
+      parser.setLanguage(Python);
+      break;
   }
+  return parser;
+}
 
+function lineOf(node: Parser.SyntaxNode): number {
+  return node.startPosition.row + 1;
+}
+
+function extractJsLikeSymbols(root: Parser.SyntaxNode): FileSymbols {
   const imports: string[] = [];
   const exports: string[] = [];
   const functions: FunctionSymbol[] = [];
   const classes: string[] = [];
 
-  try {
-    traverse(ast, {
-      ImportDeclaration(path: any) {
-        imports.push(path.node.source.value);
-      },
-      CallExpression(path: any) {
-        if (path.node.callee.type === 'Identifier' && path.node.callee.name === 'require') {
-          const arg = path.node.arguments[0];
-          if (arg && arg.type === 'StringLiteral') imports.push(arg.value);
+  function nameOfMethodLike(node: Parser.SyntaxNode): string | null {
+    const nameNode = node.childForFieldName('name');
+    if (!nameNode) return null;
+    if (nameNode.type === 'private_property_identifier') return `#${nameNode.text.replace(/^#/, '')}`;
+    return nameNode.text;
+  }
+
+  function visit(node: Parser.SyntaxNode) {
+    switch (node.type) {
+      case 'import_statement': {
+        const source = node.childForFieldName('source');
+        if (source) imports.push(source.text.replace(/^['"]|['"]$/g, ''));
+        break;
+      }
+      case 'call_expression': {
+        const fn = node.childForFieldName('function');
+        if (fn?.type === 'identifier' && fn.text === 'require') {
+          const args = node.childForFieldName('arguments');
+          const first = args?.namedChild(0);
+          if (first?.type === 'string') imports.push(first.text.replace(/^['"]|['"]$/g, ''));
         }
-      },
-      ExportNamedDeclaration(path: any) {
-        const decl = path.node.declaration;
-        if (decl) {
-          if (decl.id?.name) exports.push(decl.id.name);
-          if (decl.declarations) {
-            for (const d of decl.declarations) {
-              if (d.id?.name) exports.push(d.id.name);
+        break;
+      }
+      case 'export_statement': {
+        const decl = node.childForFieldName('declaration');
+        const isDefault = node.children.some((c) => c.type === 'default');
+        if (isDefault) {
+          exports.push('default');
+        } else if (decl) {
+          if (decl.type === 'function_declaration' || decl.type === 'class_declaration') {
+            const nameNode = decl.childForFieldName('name');
+            if (nameNode) exports.push(nameNode.text);
+          } else if (decl.type === 'lexical_declaration' || decl.type === 'variable_declaration') {
+            for (const d of decl.namedChildren) {
+              if (d.type === 'variable_declarator') {
+                const nameNode = d.childForFieldName('name');
+                if (nameNode) exports.push(nameNode.text);
+              }
             }
           }
         }
-        for (const spec of path.node.specifiers || []) {
-          if (spec.exported?.name) exports.push(spec.exported.name);
+        const clause = node.namedChildren.find((c) => c.type === 'export_clause');
+        if (clause) {
+          for (const spec of clause.namedChildren) {
+            if (spec.type === 'export_specifier') {
+              const alias = spec.childForFieldName('alias');
+              const name = spec.childForFieldName('name');
+              exports.push((alias ?? name)?.text ?? '');
+            }
+          }
         }
-      },
-      ExportDefaultDeclaration() {
-        exports.push('default');
-      },
-      FunctionDeclaration(path: any) {
-        if (path.node.id?.name) {
-          functions.push({ name: path.node.id.name, line: path.node.loc?.start.line ?? 0, kind: 'function' });
+        break;
+      }
+      case 'function_declaration':
+      case 'function_expression':
+      case 'generator_function_declaration': {
+        const nameNode = node.childForFieldName('name');
+        if (nameNode) functions.push({ name: nameNode.text, line: lineOf(node), kind: 'function' });
+        break;
+      }
+      case 'class_declaration': {
+        const nameNode = node.childForFieldName('name');
+        if (nameNode) classes.push(nameNode.text);
+        break;
+      }
+      case 'method_definition': {
+        const name = nameOfMethodLike(node);
+        if (name) functions.push({ name, line: lineOf(node), kind: 'method' });
+        break;
+      }
+      case 'pair': {
+        // Object literal method shorthand parses as `pair` when it has a
+        // colon (key: function(){}); true shorthand methods are their own
+        // 'method_definition' inside object expressions, already handled above.
+        const value = node.childForFieldName('value');
+        if (value && (value.type === 'function_expression' || value.type === 'arrow_function')) {
+          const key = node.childForFieldName('key');
+          if (key) functions.push({ name: key.text, line: lineOf(node), kind: 'method' });
         }
-      },
-      FunctionExpression(path: any) {
-        // Named function expressions anywhere (e.g. `export default x && function foo() {}`)
-        if (path.node.id?.name) {
-          functions.push({ name: path.node.id.name, line: path.node.loc?.start.line ?? 0, kind: 'function' });
-        }
-      },
-      ClassDeclaration(path: any) {
-        if (path.node.id?.name) classes.push(path.node.id.name);
-      },
-      ClassMethod(path: any) {
-        const key = path.node.key;
-        const name = key?.name || key?.value;
-        if (name) functions.push({ name, line: path.node.loc?.start.line ?? 0, kind: 'method' });
-      },
-      // Private methods (`#foo() {}`) are a distinct node type from ClassMethod;
-      // the key is a PrivateName wrapping an Identifier at key.id.name, not key.name.
-      ClassPrivateMethod(path: any) {
-        const name = path.node.key?.id?.name;
-        if (name) functions.push({ name: `#${name}`, line: path.node.loc?.start.line ?? 0, kind: 'method' });
-      },
-      ObjectMethod(path: any) {
-        const key = path.node.key;
-        const name = key?.name || key?.value;
-        if (name) functions.push({ name, line: path.node.loc?.start.line ?? 0, kind: 'method' });
-      },
-      VariableDeclarator(path: any) {
-        const init = path.node.init;
+        break;
+      }
+      case 'variable_declarator': {
+        const value = node.childForFieldName('value');
+        const nameNode = node.childForFieldName('name');
         if (
-          init &&
-          (init.type === 'ArrowFunctionExpression' || init.type === 'FunctionExpression') &&
-          path.node.id?.name
+          value &&
+          nameNode?.type === 'identifier' &&
+          (value.type === 'arrow_function' || value.type === 'function_expression')
         ) {
-          functions.push({ name: path.node.id.name, line: path.node.loc?.start.line ?? 0, kind: 'arrow' });
+          functions.push({ name: nameNode.text, line: lineOf(node), kind: 'arrow' });
         }
-      },
-      AssignmentExpression(path: any) {
+        break;
+      }
+      case 'assignment_expression': {
         // Pattern used by express: `res.send = function send(body) {...}`
-        const left = path.node.left;
-        const right = path.node.right;
+        const left = node.childForFieldName('left');
+        const right = node.childForFieldName('right');
         if (
-          left?.type === 'MemberExpression' &&
-          left.property?.name &&
-          (right?.type === 'FunctionExpression' || right?.type === 'ArrowFunctionExpression')
+          left?.type === 'member_expression' &&
+          (right?.type === 'function_expression' || right?.type === 'arrow_function')
         ) {
-          functions.push({ name: left.property.name, line: path.node.loc?.start.line ?? 0, kind: 'method' });
+          const property = left.childForFieldName('property');
+          if (property) functions.push({ name: property.text, line: lineOf(node), kind: 'method' });
         }
-      },
-    });
-  } catch {
-    // partial results are fine
+        break;
+      }
+    }
+    for (const child of node.namedChildren) visit(child);
   }
 
+  visit(root);
+  return {
+    imports: [...new Set(imports)],
+    exports: [...new Set(exports.filter(Boolean))],
+    functions: dedupeFunctions(functions),
+    classes: [...new Set(classes)],
+  };
+}
+
+function extractPythonSymbols(root: Parser.SyntaxNode): FileSymbols {
+  const imports: string[] = [];
+  const exports: string[] = [];
+  const functions: FunctionSymbol[] = [];
+  const classes: string[] = [];
+
+  function visit(node: Parser.SyntaxNode, insideClass: boolean) {
+    switch (node.type) {
+      case 'import_statement':
+      case 'import_from_statement': {
+        for (const child of node.namedChildren) {
+          if (child.type === 'dotted_name' || child.type === 'relative_import') {
+            imports.push(child.text);
+            break;
+          }
+        }
+        break;
+      }
+      case 'function_definition': {
+        const nameNode = node.childForFieldName('name');
+        if (nameNode) {
+          functions.push({ name: nameNode.text, line: lineOf(node), kind: insideClass ? 'method' : 'function' });
+          // Python has no explicit export keyword; a top-level, non-underscore-prefixed
+          // name is the closest real signal of "public API" without inventing one.
+          if (!insideClass && !nameNode.text.startsWith('_')) exports.push(nameNode.text);
+        }
+        break;
+      }
+      case 'class_definition': {
+        const nameNode = node.childForFieldName('name');
+        if (nameNode) {
+          classes.push(nameNode.text);
+          if (!nameNode.text.startsWith('_')) exports.push(nameNode.text);
+        }
+        break;
+      }
+    }
+    const nowInsideClass = insideClass || node.type === 'class_definition';
+    for (const child of node.namedChildren) visit(child, nowInsideClass);
+  }
+
+  visit(root, false);
   return {
     imports: [...new Set(imports)],
     exports: [...new Set(exports)],
     functions: dedupeFunctions(functions),
     classes: [...new Set(classes)],
   };
+}
+
+export function extractSymbols(code: string, relPath: string): FileSymbols | null {
+  const lang = detectLanguage(relPath);
+  if (!lang) return null;
+
+  let root: Parser.SyntaxNode;
+  try {
+    const parser = parserFor(lang);
+    root = parser.parse(code).rootNode;
+  } catch {
+    return null;
+  }
+
+  try {
+    return lang === 'py' ? extractPythonSymbols(root) : extractJsLikeSymbols(root);
+  } catch {
+    // partial/best-effort results only - never throw out of symbol extraction
+    return { imports: [], exports: [], functions: [], classes: [] };
+  }
 }
 
 function dedupeFunctions(fns: FunctionSymbol[]): FunctionSymbol[] {

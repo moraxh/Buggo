@@ -6,9 +6,10 @@ import { extractSymbols, type FileSymbols } from './ast.js';
 const IGNORE_DIRS = new Set([
   'node_modules', 'dist', 'build', 'coverage', '.next', 'vendor',
   '.git', '.github', 'tmp', 'examples', 'docs', '.changeset',
+  '__pycache__', '.venv', 'venv', '.mypy_cache', '.pytest_cache', 'site-packages',
 ]);
 
-const CODE_EXTENSIONS = new Set(['.js', '.ts', '.jsx', '.tsx', '.mjs', '.cjs']);
+const CODE_EXTENSIONS = new Set(['.js', '.ts', '.jsx', '.tsx', '.mjs', '.cjs', '.py']);
 
 export type FileEntry = {
   relPath: string;
@@ -24,7 +25,13 @@ export type RepoScan = {
 };
 
 function isTestFile(relPath: string): boolean {
-  return /\.(test|spec)\.[jt]sx?$/.test(relPath) || /\/test\//.test(relPath) || /^test\//.test(relPath);
+  return (
+    /\.(test|spec)\.[jt]sx?$/.test(relPath) ||
+    /(^|\/)(test_[^/]+|[^/]+_test)\.py$/.test(relPath) ||
+    /\/test\//.test(relPath) ||
+    /^test\//.test(relPath) ||
+    /(^|\/)tests\//.test(relPath)
+  );
 }
 
 function walk(dir: string, root: string, out: FileEntry[]) {
