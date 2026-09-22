@@ -11,6 +11,24 @@ const IGNORE_DIRS = new Set([
 
 const CODE_EXTENSIONS = new Set(['.js', '.ts', '.jsx', '.tsx', '.mjs', '.cjs', '.py']);
 
+// Config/infra files (build tooling, CI, deploy manifests): no AST, but a
+// bug report about a build/deploy failure often points straight at one of
+// these (see ast.ts's isConfigFile/extractConfigSymbols for the extraction
+// side). Kept narrow on purpose - ordinary data/fixture YAML would flood
+// the candidate list otherwise.
+const CONFIG_EXTENSIONS = new Set(['.yaml', '.yml', '.toml']);
+const CONFIG_FILENAMES = new Set([
+  'dockerfile', 'docker-compose.yml', 'docker-compose.yaml',
+  '.dockerignore', '.npmrc', '.nvmrc',
+]);
+
+function isConfigCandidate(entryName: string, ext: string): boolean {
+  if (CONFIG_EXTENSIONS.has(ext)) return true;
+  const lower = entryName.toLowerCase();
+  if (CONFIG_FILENAMES.has(lower)) return true;
+  return lower.startsWith('dockerfile.');
+}
+
 export type FileEntry = {
   relPath: string;
   size: number;
@@ -42,7 +60,8 @@ function walk(dir: string, root: string, out: FileEntry[]) {
     return;
   }
   for (const entry of entries) {
-    if (entry.startsWith('.') && entry !== '.') continue;
+    const isDotfile = entry.startsWith('.') && entry !== '.';
+    if (isDotfile && !CONFIG_FILENAMES.has(entry.toLowerCase())) continue;
     const full = join(dir, entry);
     let stat;
     try {
@@ -55,8 +74,10 @@ function walk(dir: string, root: string, out: FileEntry[]) {
       walk(full, root, out);
     } else if (stat.isFile()) {
       const ext = extname(entry);
-      if (!CODE_EXTENSIONS.has(ext)) continue;
-      if (/\.lock$/.test(entry) || entry === 'package-lock.json') continue;
+      const isCode = CODE_EXTENSIONS.has(ext);
+      const isConfig = isConfigCandidate(entry, ext);
+      if (!isCode && !isConfig) continue;
+      if (/\.lock$/.test(entry) || entry === 'package-lock.json' || entry === 'pnpm-lock.yaml') continue;
       const relPath = relative(root, full);
       out.push({ relPath, size: stat.size, isTest: isTestFile(relPath) });
     }

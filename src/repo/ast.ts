@@ -25,14 +25,40 @@ export type FileSymbols = {
   classes: string[];
 };
 
-type Language = 'js' | 'ts' | 'tsx' | 'py';
+type Language = 'js' | 'ts' | 'tsx' | 'py' | 'config';
 
 function detectLanguage(relPath: string): Language | null {
   if (/\.tsx$/.test(relPath)) return 'tsx';
   if (/\.ts$/.test(relPath)) return 'ts';
   if (/\.(js|jsx|mjs|cjs)$/.test(relPath)) return 'js';
   if (/\.py$/.test(relPath)) return 'py';
+  if (isConfigFile(relPath)) return 'config';
   return null;
+}
+
+/**
+ * Config/infra files (build tooling, CI, deploy manifests) have no AST to
+ * speak of, but a bug report about a deploy/build failure often points
+ * straight at one of these - excluding them from candidates entirely (as
+ * the scanner did before) makes such bugs unfindable by construction. Kept
+ * deliberately narrow (extension + a short list of well-known bare
+ * filenames) so ordinary data/fixture YAML or JSON doesn't flood the
+ * candidate list.
+ */
+const CONFIG_FILENAMES = new Set([
+  'dockerfile', 'docker-compose.yml', 'docker-compose.yaml',
+  '.dockerignore', '.gitignore', '.npmrc', '.nvmrc',
+]);
+
+function isConfigFile(relPath: string): boolean {
+  const base = relPath.split('/').pop() ?? relPath;
+  const lower = base.toLowerCase();
+  if (CONFIG_FILENAMES.has(lower)) return true;
+  if (/\.(ya?ml|toml)$/.test(lower)) return true;
+  // "next.config.ts" is already covered by the ts/js branches above (real
+  // AST); this only catches the non-JS config surface (next.config.mjs's
+  // and vite.config's own default-export bodies still parse as JS/TS).
+  return false;
 }
 
 function parserFor(lang: Language): Parser {
@@ -233,9 +259,43 @@ function extractPythonSymbols(root: Parser.SyntaxNode): FileSymbols {
   };
 }
 
+/**
+ * YAML/TOML/Dockerfile have no real AST parser wired up here - top-level
+ * keys (YAML/TOML) or instructions (Dockerfile) are extracted with plain
+ * line scanning instead. They're reported as `exports` (the field files.ts
+ * already surfaces to Jev's ranking prompt as "exports: ..."), not
+ * `functions`, since "top-level key" is the closer analog: it's the part
+ * of the file a human skimming it for "does this look relevant" would look
+ * at first.
+ */
+function extractConfigSymbols(code: string, relPath: string): FileSymbols {
+  const base = (relPath.split('/').pop() ?? relPath).toLowerCase();
+  const keys: string[] = [];
+
+  if (base === 'dockerfile' || base.startsWith('dockerfile.')) {
+    for (const line of code.split('\n')) {
+      const m = /^\s*([A-Z]+)\s+\S/.exec(line);
+      if (m) keys.push(m[1]);
+    }
+  } else {
+    // YAML/TOML top-level keys: unindented `key:` (YAML) or `key = ` / `[section]` (TOML).
+    for (const line of code.split('\n')) {
+      if (/^\s/.test(line) || !line.trim() || line.trim().startsWith('#')) continue;
+      const yamlKey = /^([A-Za-z0-9_.\-]+)\s*:/.exec(line);
+      const tomlSection = /^\[([^\]]+)\]/.exec(line);
+      const tomlKey = /^([A-Za-z0-9_.\-]+)\s*=/.exec(line);
+      const match = yamlKey ?? tomlSection ?? tomlKey;
+      if (match) keys.push(match[1]);
+    }
+  }
+
+  return { imports: [], exports: [...new Set(keys)], functions: [], classes: [] };
+}
+
 export function extractSymbols(code: string, relPath: string): FileSymbols | null {
   const lang = detectLanguage(relPath);
   if (!lang) return null;
+  if (lang === 'config') return extractConfigSymbols(code, relPath);
 
   let root: Parser.SyntaxNode;
   try {
