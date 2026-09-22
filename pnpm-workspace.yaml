@@ -17,6 +17,7 @@ minimumReleaseAgeExclude: []
 # this list only for a package whose install script you've checked and that
 # is known to need one (native addon builds, etc).
 onlyBuiltDependencies:
+  - esbuild
   - tree-sitter
   - tree-sitter-javascript
   - tree-sitter-python
