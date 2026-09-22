@@ -1,5 +1,4 @@
 import { parse } from '@babel/parser';
-// @ts-expect-error - no types shipped cleanly for default import in this setup
 import traverseModule from '@babel/traverse';
 const traverse: typeof traverseModule = (traverseModule as any).default || traverseModule;
 

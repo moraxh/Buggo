@@ -8,7 +8,10 @@
     "strict": false,
     "resolveJsonModule": true,
     "allowJs": true,
-    "types": ["node"]
+    "types": ["node"],
+    "outDir": "dist",
+    "rootDir": "src",
+    "declaration": true
   },
   "include": ["src"]
 }

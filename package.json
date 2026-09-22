@@ -2,13 +2,21 @@
   "name": "buggo",
   "version": "0.1.0",
   "description": "An AI-native bug investigator: narrows a repository down to the files most worth inspecting for a reported bug.",
-  "main": "src/index.ts",
+  "main": "dist/index.js",
   "type": "module",
-  "bin": {
-    "buggo": "src/cli/buggo.ts",
-    "buggo-mcp": "src/cli/buggo-mcp.ts"
+  "exports": {
+    ".": "./dist/index.js"
   },
+  "bin": {
+    "buggo": "dist/cli/buggo.js",
+    "buggo-mcp": "dist/cli/buggo-mcp.js"
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
     "investigate": "tsx src/cli/buggo.ts investigate",
     "mcp": "tsx src/cli/buggo-mcp.ts",
     "typecheck": "tsc --noEmit",

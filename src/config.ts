@@ -1,8 +1,14 @@
 import { config as loadDotenv } from 'dotenv';
+import { readUserConfig } from './storage/user-config.js';
 loadDotenv({ quiet: true });
 
+function resolveApiKey(): string {
+  if (process.env.JEV_AI_KEY) return process.env.JEV_AI_KEY;
+  return readUserConfig().jevApiKey ?? '';
+}
+
 export const config = {
-  jevApiKey: process.env.JEV_AI_KEY || '',
+  jevApiKey: resolveApiKey(),
   jevEndpoint: 'https://openrouter.ai/api/alpha/decisions',
   jevModel: 'typesafe/jev-1.13',
 
@@ -32,7 +38,8 @@ export const config = {
 export function requireApiKey(): string {
   if (!config.jevApiKey) {
     throw new Error(
-      'JEV_AI_KEY is not set. Copy .env.example to .env and add your OpenRouter API key.'
+      'No API key found. Run `buggo config set-key <your-openrouter-key>`, ' +
+        'or set the JEV_AI_KEY environment variable.'
     );
   }
   return config.jevApiKey;
