@@ -1,0 +1,33 @@
+{
+  "name": "buggo",
+  "version": "0.1.0",
+  "description": "An AI-native bug investigator: narrows a repository down to the files most worth inspecting for a reported bug.",
+  "main": "src/index.ts",
+  "type": "module",
+  "bin": {
+    "buggo": "src/cli/buggo.ts",
+    "buggo-mcp": "src/cli/buggo-mcp.ts"
+  },
+  "scripts": {
+    "investigate": "tsx src/cli/buggo.ts investigate",
+    "mcp": "tsx src/cli/buggo-mcp.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test test/**/*.test.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@babel/parser": "^8.0.6",
+    "@babel/traverse": "^8.0.6",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@types/babel__traverse": "^7.28.0",
+    "dotenv": "^18.0.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2"
+  }
+}

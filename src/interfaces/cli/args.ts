@@ -1,0 +1,93 @@
+/**
+ * Argument parsing only - no output formatting, no investigation logic.
+ * Kept separate so both the human and JSON entry points parse args the
+ * same way.
+ */
+import { readFileSync, existsSync } from 'node:fs';
+
+export type ParsedArgs = {
+  description: string;
+  errorMessage?: string;
+  stackTrace?: string;
+  failingTest?: string;
+  repoRoot: string;
+  format: 'human' | 'json';
+};
+
+export class ArgsError extends Error {}
+
+function readFlagValue(argv: string[], flag: string): string | undefined {
+  const idx = argv.indexOf(flag);
+  if (idx < 0) return undefined;
+  const value = argv[idx + 1];
+  if (value === undefined) throw new ArgsError(`${flag} requires a value`);
+  return value;
+}
+
+/** Shared by investigate/show so an invalid --format is always a hard error, never a silent fallback. */
+export function parseFormatFlag(argv: string[]): 'human' | 'json' {
+  const format = readFlagValue(argv, '--format');
+  if (format === undefined) return 'human';
+  if (format !== 'human' && format !== 'json') {
+    throw new ArgsError(`--format must be "human" or "json", got "${format}"`);
+  }
+  return format;
+}
+
+/** --stack accepts either a file path or literal text, per spec section 9. */
+function resolveStackTrace(raw: string | undefined): string | undefined {
+  if (raw === undefined) return undefined;
+  if (existsSync(raw)) return readFileSync(raw, 'utf-8');
+  return raw;
+}
+
+/** Every flag investigate accepts that consumes the following token as its value. */
+const INVESTIGATE_VALUE_FLAGS = new Set(['--error', '--stack', '--test', '--repo', '--format']);
+
+/** Every flag show accepts that consumes the following token as its value. */
+export const SHOW_VALUE_FLAGS = new Set(['--format']);
+
+/**
+ * Extracts positional (non-flag) arguments, skipping each known value
+ * flag's value along with the flag itself. Driven by an explicit
+ * known-flags list rather than "does the previous token start with -", so
+ * a flag's own value (e.g. "json" in "--format json") is never mistaken
+ * for a positional argument - which is what caused two separate bugs
+ * before this helper existed: parseInvestigateArgs treating a flag's value
+ * as the bug description, and runShowCommand treating a flag's value as
+ * the caseId when the real caseId argument was omitted.
+ */
+export function extractPositionals(argv: string[], valueFlags: ReadonlySet<string>): string[] {
+  const positionals: string[] = [];
+  for (let i = 0; i < argv.length; i++) {
+    const token = argv[i];
+    if (valueFlags.has(token)) {
+      i++; // skip this flag's value
+      continue;
+    }
+    if (token.startsWith('-')) continue; // unknown/boolean flag
+    positionals.push(token);
+  }
+  return positionals;
+}
+
+export function parseInvestigateArgs(argv: string[]): ParsedArgs {
+  const positionals = extractPositionals(argv, INVESTIGATE_VALUE_FLAGS);
+
+  const description = positionals[0];
+  if (!description) {
+    throw new ArgsError('A bug description is required: buggo investigate "<description>"');
+  }
+  if (positionals.length > 1) {
+    throw new ArgsError(`Unexpected extra argument(s): ${positionals.slice(1).join(', ')}`);
+  }
+
+  return {
+    description,
+    errorMessage: readFlagValue(argv, '--error'),
+    stackTrace: resolveStackTrace(readFlagValue(argv, '--stack')),
+    failingTest: readFlagValue(argv, '--test'),
+    repoRoot: readFlagValue(argv, '--repo') ?? process.cwd(),
+    format: parseFormatFlag(argv),
+  };
+}
