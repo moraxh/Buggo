@@ -1,6 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { JevClient, type ChoiceAnswer } from '../jev/client.js';
+import type { ChoiceAnswer } from '../jev/client.js';
+import type { DecisionEngine } from '../providers/jev/decision-engine.js';
 import type { BugRecord } from './bug-record.js';
 import { extractSymbols } from '../repo/ast.js';
 import { config } from '../config.js';
@@ -8,7 +9,7 @@ import { config } from '../config.js';
 export type FunctionRanking = { file: string; func: string; probability: number }[];
 
 export async function rankFunctions(
-  client: JevClient,
+  engine: DecisionEngine,
   bug: BugRecord,
   repoRoot: string,
   topFiles: string[]
@@ -45,7 +46,7 @@ export async function rankFunctions(
     stack_trace: bug.stack_trace,
   };
 
-  const res = await client.ask('phaseC_rank_functions', {
+  const res = await engine.ask('phaseC_rank_functions', {
     state,
     questions: {
       most_likely_function: {

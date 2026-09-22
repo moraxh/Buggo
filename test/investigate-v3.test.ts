@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { investigateV3 } from '../src/investigation/investigate-v3.js';
-import type { JevClient } from '../src/jev/client.js';
+import type { DecisionEngine } from '../src/providers/jev/decision-engine.js';
 import { FakeJevClient } from './fakes/fake-jev-client.js';
 
 const FIXTURE_ROOT = join(import.meta.dirname, 'fixtures', 'tiny-repo');
@@ -18,7 +18,7 @@ test('investigateV3 direct (unchunked) localization returns a ranked file with s
   });
 
   const result = await investigateV3(
-    fake as unknown as JevClient,
+    fake as unknown as DecisionEngine,
     { bug_id: 'test-bug', bug_description: 'add() returns wrong sum', error_message: null, stack_trace: null },
     FIXTURE_ROOT
   );
@@ -33,7 +33,7 @@ test('investigateV3 never fabricates a candidate outside the scanned repo', asyn
   const fake = new FakeJevClient({ pickWinner: (req) => Object.keys((Object.values(req.questions)[0] as any).criteria)[0] });
 
   const result = await investigateV3(
-    fake as unknown as JevClient,
+    fake as unknown as DecisionEngine,
     { bug_id: 'test-bug-2', bug_description: 'something broke', error_message: null, stack_trace: null },
     FIXTURE_ROOT
   );

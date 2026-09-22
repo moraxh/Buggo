@@ -31,9 +31,4 @@ export class JevDecisionEngine implements DecisionEngine {
   getTotals(): { calls: number; cost: number } {
     return this.client.getTotals();
   }
-
-  /** Escape hatch for pipeline code that still expects a concrete JevClient. */
-  raw(): JevClient {
-    return this.client;
-  }
 }

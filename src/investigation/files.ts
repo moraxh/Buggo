@@ -1,4 +1,5 @@
-import { JevClient, type ChoiceAnswer } from '../jev/client.js';
+import type { ChoiceAnswer } from '../jev/client.js';
+import type { DecisionEngine } from '../providers/jev/decision-engine.js';
 import type { BugRecord } from './bug-record.js';
 import type { RepoScan } from '../repo/scanner.js';
 import { config } from '../config.js';
@@ -21,7 +22,7 @@ export type FileRanking = { file: string; probability: number }[];
  * descriptions instead of full file contents.
  */
 export async function rankFiles(
-  client: JevClient,
+  engine: DecisionEngine,
   bug: BugRecord,
   scan: RepoScan,
   candidateFiles: string[],
@@ -52,7 +53,7 @@ export async function rankFiles(
     likely_subsystem: subsystemHint,
   };
 
-  const res = await client.ask('phaseB_rank_files', {
+  const res = await engine.ask('phaseB_rank_files', {
     state,
     questions: {
       most_likely_file: {

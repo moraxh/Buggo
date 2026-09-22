@@ -1,4 +1,5 @@
-import { JevClient, type ChoiceAnswer } from '../jev/client.js';
+import type { ChoiceAnswer } from '../jev/client.js';
+import type { DecisionEngine } from '../providers/jev/decision-engine.js';
 import type { BugRecord } from './bug-record.js';
 
 const SUBSYSTEMS: Record<string, string> = {
@@ -27,7 +28,7 @@ export type SubsystemResult = {
 };
 
 export async function classifySubsystem(
-  client: JevClient,
+  engine: DecisionEngine,
   bug: BugRecord,
   structuralSummary: string
 ): Promise<SubsystemResult> {
@@ -38,7 +39,7 @@ export async function classifySubsystem(
     repository_structure: structuralSummary,
   };
 
-  const res = await client.ask('phaseA_subsystem', {
+  const res = await engine.ask('phaseA_subsystem', {
     state,
     questions: {
       subsystem: {

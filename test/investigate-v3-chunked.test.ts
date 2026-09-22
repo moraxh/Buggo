@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { investigateV3 } from '../src/investigation/investigate-v3.js';
-import type { JevClient } from '../src/jev/client.js';
+import type { DecisionEngine } from '../src/providers/jev/decision-engine.js';
 import { FakeJevClient } from './fakes/fake-jev-client.js';
 
 function makeLargeRepo(fileCount: number): string {
@@ -35,7 +35,7 @@ test('investigateV3 chunked path gives every candidate a real judgment (no prefi
     });
 
     const result = await investigateV3(
-      fake as unknown as JevClient,
+      fake as unknown as DecisionEngine,
       { bug_id: 'test-bug-large', bug_description: 'brokenLogic returns null unexpectedly', error_message: null, stack_trace: null },
       root
     );
