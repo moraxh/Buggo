@@ -10,14 +10,26 @@ const IGNORE_DIRS = new Set([
   '__pycache__', '.venv', 'venv', '.mypy_cache', '.pytest_cache', 'site-packages',
 ]);
 
-const CODE_EXTENSIONS = new Set(['.js', '.ts', '.jsx', '.tsx', '.mjs', '.cjs', '.py']);
+// Frontend framework components (.astro/.vue/.svelte) embed a real JS/TS
+// script block (frontmatter fence, <script>, or <script setup>) that
+// ast.ts's extractSymbols knows how to isolate and parse - they get real
+// symbols, not just a filename, same as .js/.ts.
+const CODE_EXTENSIONS = new Set([
+  '.js', '.ts', '.jsx', '.tsx', '.mjs', '.cjs', '.mts', '.cts', '.py',
+  '.astro', '.vue', '.svelte', '.mdx',
+]);
 
-// Config/infra files (build tooling, CI, deploy manifests): no AST, but a
-// bug report about a build/deploy failure often points straight at one of
-// these (see ast.ts's isConfigFile/extractConfigSymbols for the extraction
-// side). Kept narrow on purpose - ordinary data/fixture YAML would flood
-// the candidate list otherwise.
-const CONFIG_EXTENSIONS = new Set(['.yaml', '.yml', '.toml']);
+// Config/infra files (build tooling, CI, deploy manifests) and frontend
+// markup/style files (no executable symbols, but a UI bug report often
+// points straight at one of these): no real AST, but ast.ts's
+// isConfigFile/extractConfigSymbols still extracts a lightweight summary
+// (top-level keys, selectors, tags) for the extraction side. Kept narrow on
+// purpose - ordinary data/fixture files would flood the candidate list
+// otherwise.
+const CONFIG_EXTENSIONS = new Set([
+  '.yaml', '.yml', '.toml',
+  '.css', '.scss', '.less', '.html', '.json',
+]);
 const CONFIG_FILENAMES = new Set([
   'dockerfile', 'docker-compose.yml', 'docker-compose.yaml',
   '.dockerignore', '.npmrc', '.nvmrc',

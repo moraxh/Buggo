@@ -102,10 +102,123 @@ def _private_helper():
   assert.ok(!sym.exports.includes('_private_helper'), 'underscore-prefixed top-level names are not treated as public');
 });
 
+test('extractSymbols (MDX): import and exported function survive amid markdown prose', () => {
+  const code = `
+import Counter from '../components/Counter';
+
+# Hello World
+
+This is **markdown** prose with a [link](/foo).
+
+export function greet(name) {
+  return 'hi ' + name;
+}
+
+<Counter initial={5} />
+`;
+  const sym = extractSymbols(code, 'src/content/post.mdx')!;
+  assert.ok(sym.imports.includes('../components/Counter'));
+  assert.ok(sym.functions.some((f) => f.name === 'greet'));
+});
+
+test('extractSymbols (.mts/.cts): parsed with the TS grammar', () => {
+  const mts = extractSymbols('export function loadConfig(): void {}', 'scripts/build.mts')!;
+  assert.ok(mts.functions.some((f) => f.name === 'loadConfig'));
+
+  const cts = extractSymbols('export function legacyLoader(): void {}', 'scripts/legacy.cts')!;
+  assert.ok(cts.functions.some((f) => f.name === 'legacyLoader'));
+});
+
 test('extractSymbols: unsupported extension returns null', () => {
   assert.equal(extractSymbols('fn main() {}', 'file.rs'), null);
 });
 
 test('extractSymbols: malformed code does not throw', () => {
   assert.doesNotThrow(() => extractSymbols('function (', 'file.js'));
+});
+
+test('extractSymbols (Astro): frontmatter fence parses as TS', () => {
+  const code = `---
+import Layout from '../layouts/Layout.astro';
+export function formatTitle(title: string): string {
+  return title.toUpperCase();
+}
+const items = [1, 2, 3];
+---
+<Layout>
+  <h1>{formatTitle('hello')}</h1>
+</Layout>
+`;
+  const sym = extractSymbols(code, 'src/pages/index.astro')!;
+  assert.ok(sym.imports.includes('../layouts/Layout.astro'));
+  assert.ok(sym.functions.some((f) => f.name === 'formatTitle'));
+  assert.ok(sym.exports.includes('formatTitle'));
+});
+
+test('extractSymbols (Astro): no frontmatter fence returns empty symbols, not null', () => {
+  const sym = extractSymbols('<h1>Static</h1>', 'src/pages/static.astro')!;
+  assert.deepEqual(sym, { imports: [], exports: [], functions: [], classes: [] });
+});
+
+test('extractSymbols (Vue): <script setup lang="ts"> parses as TS', () => {
+  const code = `
+<template>
+  <button @click="increment">{{ count }}</button>
+</template>
+<script setup lang="ts">
+import { ref } from 'vue';
+const count = ref(0);
+function increment(): void {
+  count.value++;
+}
+</script>
+`;
+  const sym = extractSymbols(code, 'src/components/Counter.vue')!;
+  assert.ok(sym.imports.includes('vue'));
+  assert.ok(sym.functions.some((f) => f.name === 'increment'));
+});
+
+test('extractSymbols (Svelte): plain <script> parses as JS', () => {
+  const code = `
+<script>
+  import { onMount } from 'svelte';
+  export function greet(name) {
+    return 'hi ' + name;
+  }
+</script>
+<p>Hello</p>
+`;
+  const sym = extractSymbols(code, 'src/Greeting.svelte')!;
+  assert.ok(sym.imports.includes('svelte'));
+  assert.ok(sym.functions.some((f) => f.name === 'greet'));
+});
+
+test('extractSymbols (CSS): top-level selectors reported as exports', () => {
+  const code = `
+.card { color: red; }
+#header { display: flex; }
+.card .title { font-weight: bold; }
+`;
+  const sym = extractSymbols(code, 'src/styles/global.css')!;
+  assert.ok(sym.exports.includes('.card'));
+  assert.ok(sym.exports.includes('#header'));
+});
+
+test('extractSymbols (HTML): script src and ids reported', () => {
+  const code = `
+<html>
+<head><script src="/main.js"></script></head>
+<body><div id="app"></div></body>
+</html>
+`;
+  const sym = extractSymbols(code, 'index.html')!;
+  assert.ok(sym.imports.includes('/main.js'));
+  assert.ok(sym.exports.includes('#app'));
+});
+
+test('extractSymbols (JSON): top-level keys reported as exports', () => {
+  const code = JSON.stringify({ name: 'buggo', scripts: { build: 'tsc' } });
+  const sym = extractSymbols(code, 'tsconfig.json')!;
+  assert.ok(sym.exports.includes('name'));
+  assert.ok(sym.exports.includes('scripts'));
 });

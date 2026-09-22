@@ -25,13 +25,22 @@ export type FileSymbols = {
   classes: string[];
 };
 
-type Language = 'js' | 'ts' | 'tsx' | 'py' | 'config';
+type Language = 'js' | 'ts' | 'tsx' | 'py' | 'config' | 'astro' | 'vue' | 'svelte' | 'markup';
 
 function detectLanguage(relPath: string): Language | null {
-  if (/\.tsx$/.test(relPath)) return 'tsx';
-  if (/\.ts$/.test(relPath)) return 'ts';
+  // .mdx is Markdown with embedded JSX/imports/exports; the TSX grammar
+  // tolerates the surrounding prose as ERROR nodes (still walked by the
+  // visitor below) and still finds the real import/export/function nodes.
+  if (/\.(tsx|mdx)$/.test(relPath)) return 'tsx';
+  if (/\.(ts|mts|cts)$/.test(relPath)) return 'ts';
   if (/\.(js|jsx|mjs|cjs)$/.test(relPath)) return 'js';
   if (/\.py$/.test(relPath)) return 'py';
+  if (/\.astro$/.test(relPath)) return 'astro';
+  if (/\.vue$/.test(relPath)) return 'vue';
+  if (/\.svelte$/.test(relPath)) return 'svelte';
+  if (/\.(css|scss|less)$/.test(relPath)) return 'markup';
+  if (/\.html?$/.test(relPath)) return 'markup';
+  if (/\.json$/.test(relPath)) return 'markup';
   if (isConfigFile(relPath)) return 'config';
   return null;
 }
@@ -61,7 +70,7 @@ function isConfigFile(relPath: string): boolean {
   return false;
 }
 
-function parserFor(lang: Language): Parser {
+function parserFor(lang: 'js' | 'ts' | 'tsx' | 'py'): Parser {
   const parser = new Parser();
   switch (lang) {
     case 'js':
@@ -78,6 +87,28 @@ function parserFor(lang: Language): Parser {
       break;
   }
   return parser;
+}
+
+/**
+ * .astro/.vue/.svelte components embed a real JS/TS script block inside a
+ * template file tree-sitter's JS/TS grammars can't parse whole (the
+ * template markup around it isn't valid JS). Isolate just that block with a
+ * regex (Astro's frontmatter fence, or an HTML-like <script> tag) and hand
+ * its contents to the same TS/JS parser used for plain .ts/.js files, so
+ * these components get real function/export symbols instead of none.
+ */
+function extractEmbeddedScript(code: string, lang: 'astro' | 'vue' | 'svelte'): { code: string; ts: boolean } | null {
+  if (lang === 'astro') {
+    // Astro frontmatter: a `---` fence at the very top of the file, TS by convention.
+    const m = /^---\r?\n([\s\S]*?)\r?\n---/.exec(code);
+    return m ? { code: m[1], ts: true } : null;
+  }
+  // Vue SFC / Svelte: <script> or <script setup lang="ts">...</script>.
+  const m = /<script\b([^>]*)>([\s\S]*?)<\/script>/i.exec(code);
+  if (!m) return null;
+  const attrs = m[1];
+  const ts = /lang\s*=\s*["']ts["']|lang\s*=\s*["']typescript["']/i.test(attrs);
+  return { code: m[2], ts };
 }
 
 function lineOf(node: Parser.SyntaxNode): number {
@@ -292,21 +323,75 @@ function extractConfigSymbols(code: string, relPath: string): FileSymbols {
   return { imports: [], exports: [...new Set(keys)], functions: [], classes: [] };
 }
 
+/**
+ * CSS/SCSS/LESS/HTML/JSON have no executable symbols, but a UI bug report
+ * ("the button is misaligned", "the modal has no styles") often points
+ * straight at one of these - reported as `exports` (the field files.ts
+ * already surfaces to Jev's ranking prompt), same rationale as
+ * extractConfigSymbols. JSON keys come from a real JSON.parse since the
+ * format is unambiguous; CSS selectors and HTML ids/classes/script srcs are
+ * cheap line/regex scans, not a real parser.
+ */
+function extractMarkupSymbols(code: string, relPath: string): FileSymbols {
+  const ext = (relPath.split('.').pop() ?? '').toLowerCase();
+
+  if (ext === 'json') {
+    try {
+      const parsed = JSON.parse(code);
+      const keys = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? Object.keys(parsed) : [];
+      return { imports: [], exports: keys, functions: [], classes: [] };
+    } catch {
+      return { imports: [], exports: [], functions: [], classes: [] };
+    }
+  }
+
+  if (ext === 'html' || ext === 'htm') {
+    const imports: string[] = [];
+    const exports: string[] = [];
+    for (const m of code.matchAll(/\bid\s*=\s*["']([^"']+)["']/gi)) exports.push(`#${m[1]}`);
+    for (const m of code.matchAll(/<script[^>]*\bsrc\s*=\s*["']([^"']+)["']/gi)) imports.push(m[1]);
+    for (const m of code.matchAll(/<link[^>]*\bhref\s*=\s*["']([^"']+)["']/gi)) imports.push(m[1]);
+    return { imports: [...new Set(imports)], exports: [...new Set(exports)], functions: [], classes: [] };
+  }
+
+  // CSS/SCSS/LESS: top-level selectors (class/id/element/at-rule openers), a
+  // cheap analog of "top-level keys" for a format Jev's ranking can skim.
+  const exports: string[] = [];
+  for (const m of code.matchAll(/([.#]?[A-Za-z0-9_-]+(?:\s*[,>+~]\s*[.#]?[A-Za-z0-9_-]+)*)\s*\{/g)) {
+    const selector = m[1].trim();
+    if (selector && selector.length < 80) exports.push(selector);
+  }
+  return { imports: [], exports: [...new Set(exports)], functions: [], classes: [] };
+}
+
 export function extractSymbols(code: string, relPath: string): FileSymbols | null {
   const lang = detectLanguage(relPath);
   if (!lang) return null;
   if (lang === 'config') return extractConfigSymbols(code, relPath);
+  if (lang === 'markup') return extractMarkupSymbols(code, relPath);
+
+  let embeddedTs = false;
+  let scriptCode = code;
+  if (lang === 'astro' || lang === 'vue' || lang === 'svelte') {
+    const embedded = extractEmbeddedScript(code, lang);
+    if (!embedded) return { imports: [], exports: [], functions: [], classes: [] };
+    scriptCode = embedded.code;
+    embeddedTs = embedded.ts;
+  }
+
+  const parseLang: 'js' | 'ts' | 'tsx' | 'py' =
+    lang === 'py' ? 'py' : lang === 'astro' || embeddedTs ? 'ts' : lang === 'js' || lang === 'ts' ? lang : 'js';
 
   let root: Parser.SyntaxNode;
   try {
-    const parser = parserFor(lang);
-    root = parser.parse(code).rootNode;
+    const parser = parserFor(parseLang);
+    root = parser.parse(scriptCode).rootNode;
   } catch {
     return null;
   }
 
   try {
-    return lang === 'py' ? extractPythonSymbols(root) : extractJsLikeSymbols(root);
+    return parseLang === 'py' ? extractPythonSymbols(root) : extractJsLikeSymbols(root);
   } catch {
     // partial/best-effort results only - never throw out of symbol extraction
     return { imports: [], exports: [], functions: [], classes: [] };
