@@ -207,10 +207,6 @@ pnpm run typecheck   # tsc --noEmit
 pnpm test            # node --test
 ```
 
-## Research
-
-Buggo's localization pipeline came out of a research project investigating whether a cheap decision model can narrow the search space for software fault localization, evaluated on real BugsJS bugs.
-
 ## Project status
 
 Early (v0.1). The localization pipeline (`investigate`, `cases`, `show`, JSON output, MCP server) is implemented and benchmarked. `buggo hunt` (blind bug discovery) and repair/verification are not.
