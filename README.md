@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="https://raw.githubusercontent.com/moraxh/Buggo/main/media/buggo.webp" alt="Buggo" width="180" />
+
 # Buggo
 
 **Every bug leaves clues.**
