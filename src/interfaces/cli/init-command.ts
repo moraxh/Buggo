@@ -9,6 +9,7 @@
  */
 import { existsSync, readFileSync, writeFileSync, appendFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { registerWithInstalledAgents, agentDisplayName } from './agent-detection.js';
 
 const MARKER = '<!-- buggo:mcp-instructions -->';
 
@@ -84,8 +85,30 @@ export function runInitCommand(argv: string[]): number {
   }
 
   console.log('');
-  console.log('If the buggo MCP server isn\'t registered with Claude Code yet, run:');
-  console.log(`  ${MCP_ADD_COMMAND}`);
+  console.log('Checking for locally installed agents...');
+  const agentResults = registerWithInstalledAgents();
+  const detected = agentResults.filter((r) => r.status !== 'not-installed');
+
+  if (detected.length === 0) {
+    console.log('No supported agent (Claude Code, Cursor, Windsurf, Cline, Zed) detected locally.');
+    console.log('If you use one not listed here, or detection missed it, register buggo-mcp manually, e.g.:');
+    console.log(`  ${MCP_ADD_COMMAND}`);
+  } else {
+    for (const r of detected) {
+      const name = agentDisplayName(r.agent);
+      switch (r.status) {
+        case 'registered':
+          console.log(`  ✓ ${name}: registered buggo-mcp`);
+          break;
+        case 'already-registered':
+          console.log(`  ✓ ${name}: already registered`);
+          break;
+        case 'failed':
+          console.log(`  ✕ ${name}: detected, but registration failed (${r.error})`);
+          break;
+      }
+    }
+  }
 
   return 0;
 }

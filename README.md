@@ -152,19 +152,18 @@ const result = await investigate({
 
 ### MCP server
 
-Connect Buggo to Claude Code (or any MCP-compatible agent) once, globally:
-
-```bash
-claude mcp add buggo --scope user -- buggo-mcp
-```
-
-An agent won't reliably reach for a new MCP tool on its own just because it's connected — it defaults to grep/read unless told otherwise. `buggo init` writes that instruction to your project's `CLAUDE.md`/`AGENTS.md` (whichever already exists; creates `AGENTS.md` if neither does) so the agent uses `buggo_investigate` before manually exploring:
+One command connects Buggo to every supported agent installed locally:
 
 ```bash
 buggo init
 ```
 
-Idempotent — safe to run again, it won't duplicate the instructions if they're already there.
+This does two things:
+
+1. **Registers `buggo-mcp` with whichever of Claude Code, Cursor, Windsurf, Cline, or Zed are installed** — detected automatically, each one's own config format handled correctly (merged into existing config, never overwritten).
+2. **Writes an explicit usage instruction to your project's `CLAUDE.md`/`AGENTS.md`** (whichever already exists; creates `AGENTS.md` if neither does). An agent won't reliably reach for a newly-connected MCP tool on its own — it defaults to grep/read unless told otherwise — so this is what actually gets `buggo_investigate` used instead of skipped.
+
+Idempotent — safe to run again, it won't duplicate registrations or instructions that are already there.
 
 Under the hood, `buggo-mcp` (installed alongside `buggo`) starts a stdio MCP server exposing one tool, `buggo_investigate`, taking `{ repository, description, errorMessage?, stackTrace?, failingTest?, hintedFiles? }` and returning the same structured result as `--format json`. Capped at 20 investigations per server session by default (`BUGGO_MCP_MAX_INVESTIGATIONS`).
 
