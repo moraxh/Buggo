@@ -9,6 +9,8 @@
 AI-native bug investigation for developers and coding agents.
 
 [![npm](https://img.shields.io/npm/v/%40moraxh%2Fbuggo?logo=npm)](https://www.npmjs.com/package/@moraxh/buggo)
+[![npm downloads](https://img.shields.io/npm/dm/%40moraxh%2Fbuggo?logo=npm&label=downloads)](https://www.npmjs.com/package/@moraxh/buggo)
+[![GitHub stars](https://img.shields.io/github/stars/moraxh/Buggo?logo=github&style=flat)](https://github.com/moraxh/Buggo/stargazers)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Node >=22](https://img.shields.io/badge/node-%3E%3D22-339933?logo=node.js&logoColor=white)](package.json)
 [![pnpm](https://img.shields.io/badge/package%20manager-pnpm-f69220?logo=pnpm&logoColor=white)](https://pnpm.io)
