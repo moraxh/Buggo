@@ -13,15 +13,36 @@ export interface DecisionEngine {
   getTotals(): { calls: number; cost: number };
 }
 
+/**
+ * Fired around each ask() call so a live-updating renderer (the CLI's
+ * detective view) can show investigation progress as it happens, instead
+ * of only the final result. Purely observational - never affects the
+ * pipeline's control flow or the Case that comes out of it.
+ */
+export type EngineProgressListener = {
+  onPhaseStart?: (label: string) => void;
+  onPhaseEnd?: (label: string, ok: boolean) => void;
+};
+
 export class JevDecisionEngine implements DecisionEngine {
   private client: JevClient;
+  private listener?: EngineProgressListener;
 
-  constructor(caseId: string) {
+  constructor(caseId: string, listener?: EngineProgressListener) {
     this.client = new JevClient(caseId);
+    this.listener = listener;
   }
 
-  ask(label: string, req: JevRequest): Promise<JevResponse> {
-    return this.client.ask(label, req);
+  async ask(label: string, req: JevRequest): Promise<JevResponse> {
+    this.listener?.onPhaseStart?.(label);
+    try {
+      const res = await this.client.ask(label, req);
+      this.listener?.onPhaseEnd?.(label, true);
+      return res;
+    } catch (err) {
+      this.listener?.onPhaseEnd?.(label, false);
+      throw err;
+    }
   }
 
   getCallLog(): CallLogEntry[] {

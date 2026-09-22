@@ -8,6 +8,7 @@
     "strict": false,
     "resolveJsonModule": true,
     "allowJs": true,
+    "jsx": "react-jsx",
     "types": ["node"],
     "outDir": "dist",
     "rootDir": "src",

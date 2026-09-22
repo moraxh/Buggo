@@ -1,5 +1,5 @@
 import { investigateV3, type InvestigationResultV3 } from '../investigation/investigate-v3.js';
-import { JevDecisionEngine } from '../providers/jev/decision-engine.js';
+import { JevDecisionEngine, type EngineProgressListener } from '../providers/jev/decision-engine.js';
 import { nextCaseId } from './case-id.js';
 import { saveCase } from '../storage/case-store.js';
 import type { Case, Evidence, Suspect, BugReport } from './types.js';
@@ -7,6 +7,8 @@ import type { Case, Evidence, Suspect, BugReport } from './types.js';
 export type InvestigateInput = {
   repoRoot: string;
   report: BugReport;
+  /** Optional: observe phase-by-phase progress as the investigation runs (see EngineProgressListener). */
+  onProgress?: EngineProgressListener;
 };
 
 export async function investigate(input: InvestigateInput): Promise<Case> {
@@ -39,7 +41,7 @@ export async function investigate(input: InvestigateInput): Promise<Case> {
     };
   }
 
-  const engine = new JevDecisionEngine(caseId);
+  const engine = new JevDecisionEngine(caseId, input.onProgress);
   let kase: Case;
 
   try {

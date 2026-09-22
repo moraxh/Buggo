@@ -28,6 +28,9 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.0",
     "dotenv": "17.4.2",
+    "ink": "7.1.1",
+    "ink-spinner": "5.0.0",
+    "react": "19.2.0",
     "tree-sitter": "0.21.1",
     "tree-sitter-javascript": "0.21.4",
     "tree-sitter-python": "0.21.0",
@@ -37,7 +40,8 @@
     "zod": "4.6.5"
   },
   "devDependencies": {
-    "@types/node": "26.6.2"
+    "@types/node": "26.6.2",
+    "@types/react": "19.2.6"
   },
   "engines": {
     "node": ">=22",
