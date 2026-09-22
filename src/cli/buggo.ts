@@ -2,6 +2,7 @@
 import { runInvestigateCommand } from '../interfaces/cli/investigate-command.js';
 import { runCasesCommand, runShowCommand } from '../interfaces/cli/cases-command.js';
 import { runConfigCommand } from '../interfaces/cli/config-command.js';
+import { runInitCommand } from '../interfaces/cli/init-command.js';
 
 const [, , command, ...rest] = process.argv;
 
@@ -23,6 +24,10 @@ switch (command) {
     process.exit(runConfigCommand(rest));
     break;
   }
+  case 'init': {
+    process.exit(runInitCommand(rest));
+    break;
+  }
   case 'hunt': {
     console.error('`buggo hunt` is not available yet.');
     process.exit(1);
@@ -38,6 +43,7 @@ switch (command) {
         '  buggo show <caseId> [--format human|json]',
         '  buggo config set-key <api-key>',
         '  buggo config show',
+        '  buggo init [--repo <path>]',
       ].join('\n')
     );
     process.exit(2);

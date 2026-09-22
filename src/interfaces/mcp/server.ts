@@ -41,8 +41,12 @@ export function createBuggoMcpServer(): McpServer {
     {
       title: 'Investigate a bug',
       description:
+        'Use this BEFORE manually grepping/reading files to find where a reported bug lives in a repository. ' +
         'Given a bug report and a local repository path, returns the files most likely responsible for the bug ' +
-        '(suspects, ranked by confidence, with evidence). Does not modify the repository or attempt a fix. ' +
+        '(suspects, ranked by confidence, with evidence: matched symbols, stack trace hits, git recency). ' +
+        'Cheap (a fraction of a cent) and fast (a few seconds) - cheaper than several rounds of exploratory ' +
+        'grep/read on an unfamiliar or large repository. Does not modify the repository or attempt a fix; it ' +
+        'only narrows down where to look next. ' +
         `Limited to ${maxInvestigations} investigations per server session.`,
       inputSchema: {
         repository: z.string().describe('Absolute path to the local repository to investigate.'),

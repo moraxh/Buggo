@@ -113,6 +113,7 @@ buggo investigate "<description>" [--error <text>] [--stack <file|text>] [--test
                   [--diff <ref>] [--recent-changes <n>] [--exclude <file> ...] [--format human|json]
 buggo cases [--status <status>] [--since <date>] [--search <text>] [--limit <n>]
 buggo show <caseId> [--format human|json]
+buggo init [--repo <path>]
 ```
 
 Extra context that goes straight into ranking as observed evidence, not a guess:
@@ -151,7 +152,21 @@ const result = await investigate({
 
 ### MCP server
 
-`pnpm run mcp` starts a stdio MCP server exposing one tool, `buggo_investigate`, taking `{ repository, description, errorMessage?, stackTrace?, failingTest?, hintedFiles? }` and returning the same structured result as `--format json`. Capped at 20 investigations per server session by default (`BUGGO_MCP_MAX_INVESTIGATIONS`).
+Connect Buggo to Claude Code (or any MCP-compatible agent) once, globally:
+
+```bash
+claude mcp add buggo --scope user -- buggo-mcp
+```
+
+An agent won't reliably reach for a new MCP tool on its own just because it's connected — it defaults to grep/read unless told otherwise. `buggo init` writes that instruction to your project's `CLAUDE.md`/`AGENTS.md` (whichever already exists; creates `AGENTS.md` if neither does) so the agent uses `buggo_investigate` before manually exploring:
+
+```bash
+buggo init
+```
+
+Idempotent — safe to run again, it won't duplicate the instructions if they're already there.
+
+Under the hood, `buggo-mcp` (installed alongside `buggo`) starts a stdio MCP server exposing one tool, `buggo_investigate`, taking `{ repository, description, errorMessage?, stackTrace?, failingTest?, hintedFiles? }` and returning the same structured result as `--format json`. Capped at 20 investigations per server session by default (`BUGGO_MCP_MAX_INVESTIGATIONS`).
 
 ## How it works
 
