@@ -94,10 +94,17 @@ Buggo is meant to run first and cheap: turn a bug report into a short, ranked li
 ## For humans and agents
 
 ```bash
-buggo investigate "<description>" [--error <text>] [--stack <file|text>] [--test <name>] [--repo <path>] [--format human|json]
+buggo investigate "<description>" [--error <text>] [--stack <file|text>] [--test <name>] [--repo <path>]
+                  [--diff <ref>] [--recent-changes <n>] [--exclude <file> ...] [--format human|json]
 buggo cases [--status <status>] [--since <date>] [--search <text>] [--limit <n>]
 buggo show <caseId> [--format human|json]
 ```
+
+Extra context that goes straight into ranking as observed evidence, not a guess:
+
+- `--diff <ref>` — files touched by a commit or range (e.g. `HEAD~3`, `main..feature`) you already suspect.
+- `--recent-changes <n>` — files touched across the last `n` commits, for "this broke recently and I don't know why yet."
+- `--exclude <file>` (repeatable) — drop a file from the candidate pool before ranking, to re-run cheaper after ruling out a previous top suspect.
 
 `--format json` is a first-class interface, not an afterthought: stdout is valid JSON and nothing else (no spinners, no color), with a stable `schemaVersion`.
 
@@ -129,7 +136,7 @@ const result = await investigate({
 
 ### MCP server
 
-`pnpm run mcp` starts a stdio MCP server exposing one tool, `buggo_investigate`, taking `{ repository, description, errorMessage?, stackTrace?, failingTest? }` and returning the same structured result as `--format json`. Capped at 20 investigations per server session by default (`BUGGO_MCP_MAX_INVESTIGATIONS`).
+`pnpm run mcp` starts a stdio MCP server exposing one tool, `buggo_investigate`, taking `{ repository, description, errorMessage?, stackTrace?, failingTest?, hintedFiles? }` and returning the same structured result as `--format json`. Capped at 20 investigations per server session by default (`BUGGO_MCP_MAX_INVESTIGATIONS`).
 
 ## How it works
 

@@ -36,7 +36,7 @@ test('investigateV3 chunked path gives every candidate a real judgment (no prefi
 
     const result = await investigateV3(
       fake as unknown as DecisionEngine,
-      { bug_id: 'test-bug-large', bug_description: 'brokenLogic returns null unexpectedly', error_message: null, stack_trace: null },
+      { bug_id: 'test-bug-large', bug_description: 'brokenLogic returns null unexpectedly', error_message: null, stack_trace: null, hinted_files: [] },
       root
     );
 

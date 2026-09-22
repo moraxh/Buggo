@@ -12,6 +12,12 @@ export type ParsedArgs = {
   failingTest?: string;
   repoRoot: string;
   format: 'human' | 'json';
+  /** Raw --diff ref (e.g. "HEAD~3", "main..feature"), resolved to file paths later once repoRoot is known (see investigate-command.ts). */
+  diffRef?: string;
+  /** --recent-changes <n>: how many recent commits' touched files to hint at; same late-resolution as diffRef. */
+  recentChangesCount?: number;
+  /** --exclude <file> (repeatable): candidate files to drop from the pool before ranking, e.g. to re-run after ruling out a previous suspect. */
+  excludedFiles: string[];
 };
 
 export class ArgsError extends Error {}
@@ -22,6 +28,18 @@ function readFlagValue(argv: string[], flag: string): string | undefined {
   const value = argv[idx + 1];
   if (value === undefined) throw new ArgsError(`${flag} requires a value`);
   return value;
+}
+
+/** Like readFlagValue, but collects every occurrence (--exclude a --exclude b -> ['a', 'b']) instead of just the first. */
+function readFlagValues(argv: string[], flag: string): string[] {
+  const values: string[] = [];
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] !== flag) continue;
+    const value = argv[i + 1];
+    if (value === undefined) throw new ArgsError(`${flag} requires a value`);
+    values.push(value);
+  }
+  return values;
 }
 
 /** Shared by investigate/show so an invalid --format is always a hard error, never a silent fallback. */
@@ -42,7 +60,9 @@ function resolveStackTrace(raw: string | undefined): string | undefined {
 }
 
 /** Every flag investigate accepts that consumes the following token as its value. */
-const INVESTIGATE_VALUE_FLAGS = new Set(['--error', '--stack', '--test', '--repo', '--format']);
+const INVESTIGATE_VALUE_FLAGS = new Set([
+  '--error', '--stack', '--test', '--repo', '--format', '--diff', '--recent-changes', '--exclude',
+]);
 
 /** Every flag show accepts that consumes the following token as its value. */
 export const SHOW_VALUE_FLAGS = new Set(['--format']);
@@ -131,6 +151,16 @@ export function parseInvestigateArgs(argv: string[]): ParsedArgs {
     throw new ArgsError(`Unexpected extra argument(s): ${positionals.slice(1).join(', ')}`);
   }
 
+  const recentChangesRaw = readFlagValue(argv, '--recent-changes');
+  let recentChangesCount: number | undefined;
+  if (recentChangesRaw !== undefined) {
+    const parsed = Number(recentChangesRaw);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      throw new ArgsError(`--recent-changes must be a positive integer, got "${recentChangesRaw}"`);
+    }
+    recentChangesCount = parsed;
+  }
+
   return {
     description,
     errorMessage: readFlagValue(argv, '--error'),
@@ -138,5 +168,8 @@ export function parseInvestigateArgs(argv: string[]): ParsedArgs {
     failingTest: readFlagValue(argv, '--test'),
     repoRoot: readFlagValue(argv, '--repo') ?? process.cwd(),
     format: parseFormatFlag(argv),
+    diffRef: readFlagValue(argv, '--diff'),
+    recentChangesCount,
+    excludedFiles: readFlagValues(argv, '--exclude'),
   };
 }

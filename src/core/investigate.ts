@@ -9,6 +9,8 @@ export type InvestigateInput = {
   report: BugReport;
   /** Optional: observe phase-by-phase progress as the investigation runs (see EngineProgressListener). */
   onProgress?: EngineProgressListener;
+  /** Repo-relative candidate paths to drop before ranking - e.g. re-running after ruling out a previous top suspect. */
+  excludedFiles?: string[];
 };
 
 export async function investigate(input: InvestigateInput): Promise<Case> {
@@ -52,8 +54,10 @@ export async function investigate(input: InvestigateInput): Promise<Case> {
         bug_description: input.report.description,
         error_message: input.report.errorMessage ?? null,
         stack_trace: input.report.stackTrace ?? null,
+        hinted_files: input.report.hintedFiles ?? [],
       },
-      input.repoRoot
+      input.repoRoot,
+      input.excludedFiles ?? []
     );
 
     const totals = engine.getTotals();
@@ -155,6 +159,12 @@ function toSuspects(result: InvestigationResultV3): Suspect[] {
     const symbolNames = sym ? [...sym.functions.map((f) => f.name), ...sym.exports].slice(0, 10) : [];
 
     const evidence: Evidence[] = [];
+    if (result.hintedFileMatches.has(r.file)) {
+      evidence.push({ kind: 'path_match', detail: 'you flagged this file as a likely suspect' });
+    }
+    if (result.stackTraceMatches.has(r.file)) {
+      evidence.push({ kind: 'path_match', detail: 'file appears in the reported stack trace' });
+    }
     if (symbolNames.length) {
       evidence.push({ kind: 'symbol_match', symbols: symbolNames });
     }

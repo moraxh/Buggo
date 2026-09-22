@@ -36,6 +36,7 @@ export function statusColor(status: CaseStatus): string {
 export function SuspectRow({ s }: { s: Suspect }) {
   const symbolEvidence = s.evidence.find((e) => e.kind === 'symbol_match');
   const symbols = symbolEvidence && symbolEvidence.kind === 'symbol_match' ? symbolEvidence.symbols.slice(0, 5) : [];
+  const pathMatch = s.evidence.find((e) => e.kind === 'path_match');
   const color = confidenceColor(s.confidence);
 
   return (
@@ -54,6 +55,11 @@ export function SuspectRow({ s }: { s: Suspect }) {
         <Text dimColor> · </Text>
         <Text bold>{(s.confidence * 100).toFixed(0)}%</Text>
       </Box>
+      {pathMatch && pathMatch.kind === 'path_match' && (
+        <Box marginLeft={4}>
+          <Text color="cyan">⚑ {pathMatch.detail}</Text>
+        </Box>
+      )}
       {symbols.length > 0 && (
         <Box marginLeft={4}>
           <Text dimColor>symbols: {symbols.join(', ')}</Text>

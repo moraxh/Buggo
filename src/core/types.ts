@@ -18,6 +18,13 @@ export type BugReport = {
   errorMessage?: string;
   stackTrace?: string;
   failingTest?: string;
+  /**
+   * Files the caller already suspects (from a diff/PR the caller thinks
+   * introduced the bug, or from --recent-changes) - a real signal fed into
+   * ranking as observed evidence, never a shortcut that skips ranking the
+   * rest of the repo (see investigation/files.ts's hintedFiles handling).
+   */
+  hintedFiles?: string[];
 };
 
 /** What we actually know happened, as distinct from what the model decided. */

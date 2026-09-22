@@ -50,9 +50,13 @@ export function createBuggoMcpServer(): McpServer {
         errorMessage: z.string().optional().describe('Error message observed, if any.'),
         stackTrace: z.string().optional().describe('Stack trace observed, if any.'),
         failingTest: z.string().optional().describe('Name or path of a failing test, if any.'),
+        hintedFiles: z
+          .array(z.string())
+          .optional()
+          .describe('Repo-relative paths already suspected (e.g. from a diff you have already looked at), used as extra ranking evidence.'),
       },
     },
-    async ({ repository, description, errorMessage, stackTrace, failingTest }) => {
+    async ({ repository, description, errorMessage, stackTrace, failingTest, hintedFiles }) => {
       if (investigationCount >= maxInvestigations) {
         return {
           content: [
@@ -75,7 +79,7 @@ export function createBuggoMcpServer(): McpServer {
 
       const kase = await investigate({
         repoRoot: repository,
-        report: { description, errorMessage, stackTrace, failingTest },
+        report: { description, errorMessage, stackTrace, failingTest, hintedFiles },
       });
       const result = toAgentResult(kase);
       return {

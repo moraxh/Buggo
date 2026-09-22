@@ -44,7 +44,7 @@ test('investigateV3 degrades gracefully when the budget runs out during Phase C,
 
   const result = await investigateV3(
     engine,
-    { bug_id: 'test-bug', bug_description: 'add() returns wrong sum', error_message: null, stack_trace: null },
+    { bug_id: 'test-bug', bug_description: 'add() returns wrong sum', error_message: null, stack_trace: null, hinted_files: [] },
     FIXTURE_ROOT
   );
 
@@ -62,7 +62,7 @@ test('investigateV3 still propagates a budget failure in Phase B (no usable rank
     () =>
       investigateV3(
         engine,
-        { bug_id: 'test-bug-2', bug_description: 'something broke', error_message: null, stack_trace: null },
+        { bug_id: 'test-bug-2', bug_description: 'something broke', error_message: null, stack_trace: null, hinted_files: [] },
         FIXTURE_ROOT
       ),
     BugBudgetExceededError

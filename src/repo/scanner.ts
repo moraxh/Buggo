@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs';
 import { join, relative, extname } from 'node:path';
 import { config } from '../config.js';
 import { extractSymbols, type FileSymbols } from './ast.js';
+import { getGitRecency, type GitRecency } from './git-signal.js';
 
 const IGNORE_DIRS = new Set([
   'node_modules', 'dist', 'build', 'coverage', '.next', 'vendor',
@@ -40,6 +41,8 @@ export type RepoScan = {
   packageJson: any | null;
   allFiles: FileEntry[];
   fileSymbols: Map<string, FileSymbols>;
+  /** relPath -> days since last git commit touching it; empty map when the repo isn't git or git isn't available. */
+  gitRecency: GitRecency;
 };
 
 function isTestFile(relPath: string): boolean {
@@ -113,7 +116,9 @@ export function scanRepo(root: string): RepoScan {
     if (symbols) fileSymbols.set(f.relPath, symbols);
   }
 
-  return { root, packageJson, allFiles, fileSymbols };
+  const gitRecency = getGitRecency(root);
+
+  return { root, packageJson, allFiles, fileSymbols, gitRecency };
 }
 
 /** Build a compact, size-bounded structural summary of the repo for Jev's state. */

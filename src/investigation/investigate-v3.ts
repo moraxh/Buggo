@@ -13,6 +13,7 @@ import { classifySubsystem, type SubsystemResult } from './subsystem.js';
 import { rankFunctions, type FunctionRanking } from './functions.js';
 import { rankFilesChunked } from './files-chunked.js';
 import type { FileRanking } from './files.js';
+import { matchStackTraceToCandidates, fuzzyMatchPathsToCandidates } from './stack-trace.js';
 
 export type InvestigationResultV3 = {
   bugId: string;
@@ -30,19 +31,51 @@ export type InvestigationResultV3 = {
    * propagates as a hard failure (see core/investigate.ts).
    */
   functionRankingIncomplete: boolean;
+  /** Candidate files the stack trace's frames actually pointed at (see stack-trace.ts). Empty when no stack trace was given or none matched. */
+  stackTraceMatches: Set<string>;
+  /** Candidate files the caller explicitly hinted at (--diff/--recent-changes), matched against real candidates. */
+  hintedFileMatches: Set<string>;
 };
 
-export async function investigateV3(engine: DecisionEngine, bug: BugRecord, repoRoot: string): Promise<InvestigationResultV3> {
+export async function investigateV3(
+  engine: DecisionEngine,
+  bug: BugRecord,
+  repoRoot: string,
+  excludedFiles: string[] = []
+): Promise<InvestigationResultV3> {
   const scan = scanRepo(repoRoot);
   const structuralSummary = buildStructuralSummary(scan);
 
   const subsystem = await classifySubsystem(engine, bug, structuralSummary);
 
-  const allCandidateFiles = listCandidateFiles(scan);
+  // Dropped before ranking (not after) so an excluded file never occupies a
+  // chunk slot or costs a Jev call - --exclude is meant to make a re-run
+  // cheaper and more focused, not just hide a result after the fact.
+  const excludedSet = new Set(excludedFiles);
+  const allCandidateFiles = listCandidateFiles(scan).filter((f) => !excludedSet.has(f));
   const usedChunking = allCandidateFiles.length > 40;
   const chunkCount = usedChunking ? Math.ceil(allCandidateFiles.length / 40) : 1;
 
-  const fileRanking = await rankFilesChunked(engine, bug, scan, allCandidateFiles, subsystem.choice);
+  // Computed once against every candidate (not per-chunk) so a match
+  // pointing at a file in a different chunk than the eventual top pick is
+  // still surfaced.
+  const stackTraceMatches = bug.stack_trace
+    ? new Set(matchStackTraceToCandidates(bug.stack_trace, allCandidateFiles))
+    : new Set<string>();
+  const hintedFileMatches =
+    bug.hinted_files.length > 0
+      ? new Set(fuzzyMatchPathsToCandidates(bug.hinted_files, allCandidateFiles))
+      : new Set<string>();
+
+  const fileRanking = await rankFilesChunked(
+    engine,
+    bug,
+    scan,
+    allCandidateFiles,
+    subsystem.choice,
+    stackTraceMatches,
+    hintedFileMatches
+  );
 
   const topFiles = fileRanking.slice(0, 5).map((r) => r.file);
   let functionRanking: FunctionRanking = [];
@@ -54,5 +87,16 @@ export async function investigateV3(engine: DecisionEngine, bug: BugRecord, repo
     functionRankingIncomplete = true;
   }
 
-  return { bugId: bug.bug_id, subsystem, fileRanking, functionRanking, scan, usedChunking, chunkCount, functionRankingIncomplete };
+  return {
+    bugId: bug.bug_id,
+    subsystem,
+    fileRanking,
+    functionRanking,
+    scan,
+    usedChunking,
+    chunkCount,
+    functionRankingIncomplete,
+    stackTraceMatches,
+    hintedFileMatches,
+  };
 }

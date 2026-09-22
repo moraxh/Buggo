@@ -35,6 +35,7 @@ export type AgentResult = {
     errorMessage: string | null;
     stackTrace: string | null;
     failingTest: string | null;
+    hintedFiles: string[];
   };
   repository: {
     root: string;
@@ -95,6 +96,7 @@ export function toAgentResult(kase: Case): AgentResult {
       errorMessage: kase.report.errorMessage ?? null,
       stackTrace: kase.report.stackTrace ?? null,
       failingTest: kase.report.failingTest ?? null,
+      hintedFiles: kase.report.hintedFiles ?? [],
     },
     repository: kase.repository,
     suspects: (kase.localization?.suspects ?? []).map(mapSuspect),

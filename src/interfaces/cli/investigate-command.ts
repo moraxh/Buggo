@@ -7,6 +7,21 @@ import { investigate } from '../../core/investigate.js';
 import { toAgentJsonString } from '../json/format.js';
 import { parseInvestigateArgs, ArgsError } from './args.js';
 import { runInvestigateLive } from './detective-live.js';
+import { getDiffFiles, getRecentlyChangedFiles } from '../../repo/git-signal.js';
+
+/**
+ * --diff and --recent-changes both resolve to a list of hinted files -
+ * done here (not in args.ts) because resolving them needs repoRoot, which
+ * argument parsing alone doesn't have yet. Best-effort: an invalid --diff
+ * ref or a non-git repo just yields no hints rather than failing the
+ * whole investigation over what is extra context, not required input.
+ */
+function resolveHintedFiles(repoRoot: string, diffRef: string | undefined, recentChangesCount: number | undefined): string[] {
+  const hints: string[] = [];
+  if (diffRef !== undefined) hints.push(...getDiffFiles(repoRoot, diffRef));
+  if (recentChangesCount !== undefined) hints.push(...getRecentlyChangedFiles(repoRoot, recentChangesCount));
+  return [...new Set(hints)];
+}
 
 export async function runInvestigateCommand(argv: string[]): Promise<number> {
   let args;
@@ -27,7 +42,9 @@ export async function runInvestigateCommand(argv: string[]): Promise<number> {
       errorMessage: args.errorMessage,
       stackTrace: args.stackTrace,
       failingTest: args.failingTest,
+      hintedFiles: resolveHintedFiles(args.repoRoot, args.diffRef, args.recentChangesCount),
     },
+    excludedFiles: args.excludedFiles,
   };
 
   if (args.format === 'json') {

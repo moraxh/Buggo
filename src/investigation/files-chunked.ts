@@ -32,10 +32,12 @@ export async function rankFilesChunked(
   bug: BugRecord,
   scan: RepoScan,
   candidateFiles: string[],
-  subsystemHint: string
+  subsystemHint: string,
+  stackTraceMatches: Set<string> = new Set(),
+  hintedFileMatches: Set<string> = new Set()
 ): Promise<FileRanking> {
   if (candidateFiles.length <= config.maxCandidateFiles) {
-    return rankFiles(engine, bug, scan, candidateFiles, subsystemHint);
+    return rankFiles(engine, bug, scan, candidateFiles, subsystemHint, stackTraceMatches, hintedFileMatches);
   }
 
   const chunkSize = config.maxCandidateFiles;
@@ -46,7 +48,9 @@ export async function rankFilesChunked(
 
   // Run all chunks in parallel - each is an independent Jev call with its
   // own candidate set, no shared state between them.
-  const chunkRankings = await Promise.all(chunks.map((chunk) => rankFiles(engine, bug, scan, chunk, subsystemHint)));
+  const chunkRankings = await Promise.all(
+    chunks.map((chunk) => rankFiles(engine, bug, scan, chunk, subsystemHint, stackTraceMatches, hintedFileMatches))
+  );
 
   // Collect every chunk's full ranking, but rescale each chunk's
   // probabilities by that chunk's own top confidence so a chunk that
@@ -72,7 +76,15 @@ export async function rankFilesChunked(
   const uniqueFinalists = [...new Set(finalists)];
 
   if (uniqueFinalists.length <= config.maxCandidateFiles) {
-    const finalRanking = await rankFiles(engine, bug, scan, uniqueFinalists, subsystemHint);
+    const finalRanking = await rankFiles(
+      engine,
+      bug,
+      scan,
+      uniqueFinalists,
+      subsystemHint,
+      stackTraceMatches,
+      hintedFileMatches
+    );
     // Merge: finalRanking gives the authoritative order for the finalists;
     // anything not in finalists keeps its (lower) chunk-local probability,
     // rescaled down so it never outranks a finalist.
@@ -86,5 +98,5 @@ export async function rankFilesChunked(
 
   // Extremely large repo (finalist pool itself exceeds the cap) - recurse
   // one level. In practice this only triggers above ~2000 candidate files.
-  return rankFilesChunked(engine, bug, scan, uniqueFinalists, subsystemHint);
+  return rankFilesChunked(engine, bug, scan, uniqueFinalists, subsystemHint, stackTraceMatches, hintedFileMatches);
 }

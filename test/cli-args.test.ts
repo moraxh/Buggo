@@ -74,3 +74,24 @@ test('parseFormatFlag throws (does not silently fall back to human) when --forma
   // a missing value, parseFormatFlag must propagate that, not swallow it.
   assert.throws(() => parseFormatFlag(['--format']), ArgsError);
 });
+
+test('parseInvestigateArgs collects every --exclude occurrence, not just the first', () => {
+  const args = parseInvestigateArgs(['a bug', '--exclude', 'src/a.ts', '--exclude', 'src/b.ts']);
+  assert.deepEqual(args.excludedFiles, ['src/a.ts', 'src/b.ts']);
+});
+
+test('parseInvestigateArgs defaults excludedFiles to an empty array when --exclude is absent', () => {
+  const args = parseInvestigateArgs(['a bug']);
+  assert.deepEqual(args.excludedFiles, []);
+});
+
+test('parseInvestigateArgs parses --diff and --recent-changes', () => {
+  const args = parseInvestigateArgs(['a bug', '--diff', 'HEAD~3', '--recent-changes', '5']);
+  assert.equal(args.diffRef, 'HEAD~3');
+  assert.equal(args.recentChangesCount, 5);
+});
+
+test('parseInvestigateArgs rejects a non-positive-integer --recent-changes', () => {
+  assert.throws(() => parseInvestigateArgs(['a bug', '--recent-changes', '0']), ArgsError);
+  assert.throws(() => parseInvestigateArgs(['a bug', '--recent-changes', 'abc']), ArgsError);
+});

@@ -13,4 +13,6 @@ export type BugRecord = {
   bug_description: string;
   error_message: string | null;
   stack_trace: string | null;
+  /** Files the caller already flagged as suspects (--diff/--recent-changes), if any. */
+  hinted_files: string[];
 };
