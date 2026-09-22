@@ -176,7 +176,35 @@ This does two things:
 
 Idempotent — safe to run again, it won't duplicate registrations or instructions that are already there.
 
+#### Claude Code
+
+Covered by `buggo init` above, no manual steps needed. If you'd rather register it yourself (or `buggo init` isn't detecting your install), the one-liner is:
+
+```bash
+claude mcp add buggo -- buggo-mcp
+```
+
+You still want the usage instruction in `CLAUDE.md`/`AGENTS.md` (see step 2 above) so Claude actually reaches for it instead of defaulting to grep/read.
+
 Under the hood, `buggo-mcp` (installed alongside `buggo`) starts a stdio MCP server exposing one tool, `buggo_investigate`, taking `{ repository, description, errorMessage?, stackTrace?, failingTest?, hintedFiles? }` and returning the same structured result as `--format json`. Capped at 20 investigations per server session by default (`BUGGO_MCP_MAX_INVESTIGATIONS`).
+
+#### Codex CLI
+
+`buggo init` doesn't detect Codex CLI yet, so wire it up by hand: add the server to `~/.codex/config.toml`, then tell Codex to actually use it (Codex, like the other agents, defaults to grep/read unless an `AGENTS.md` says otherwise).
+
+```toml
+[mcp_servers.buggo]
+command = "buggo-mcp"
+args = []
+```
+
+```markdown
+## Bug fixes
+
+- When investigating a bug, use the `buggo` MCP tool (`buggo_investigate`) to help locate the files most likely responsible before diving into manual search. Treat its output as ranked suspects to verify, not a confirmed diagnosis.
+```
+
+If `buggo-mcp` isn't resolvable from Codex's PATH (e.g. it was installed under nvm and Codex doesn't inherit your shell's PATH), point `command` at the absolute path instead, e.g. `~/.nvm/versions/node/<version>/bin/buggo-mcp`.
 
 ## How it works
 
