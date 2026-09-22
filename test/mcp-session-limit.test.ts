@@ -13,32 +13,46 @@ import { createBuggoMcpServer } from '../src/interfaces/mcp/server.js';
  * investigate() (see investigate-failure.test.ts), so each tool call still
  * counts against the limit even though it never reaches the network.
  */
-test('buggo_investigate rejects calls past the configured per-session limit', async () => {
-  process.env.BUGGO_MCP_MAX_INVESTIGATIONS = '2';
+async function withTempCwd<T>(fn: () => Promise<T>): Promise<T> {
+  const dir = mkdtempSync(join(tmpdir(), 'buggo-mcp-session-limit-cwd-'));
+  const originalCwd = process.cwd();
+  process.chdir(dir);
   try {
-    const server = createBuggoMcpServer();
-    const client = new Client({ name: 'test-client', version: '0.0.0' });
-    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
-
-    const emptyRepo = mkdtempSync(join(tmpdir(), 'buggo-mcp-limit-repo-'));
-    try {
-      const args = { repository: emptyRepo, description: 'anything' };
-
-      const first = (await client.callTool({ name: 'buggo_investigate', arguments: args })) as any;
-      assert.equal(first.isError, true, 'empty repo investigation fails (no candidates), but still counts');
-
-      const second = (await client.callTool({ name: 'buggo_investigate', arguments: args })) as any;
-      assert.equal(second.isError, true);
-
-      const third = (await client.callTool({ name: 'buggo_investigate', arguments: args })) as any;
-      assert.equal(third.isError, true);
-      const thirdText = JSON.parse(third.content[0].text);
-      assert.match(thirdText.error, /Session investigation limit reached/);
-    } finally {
-      rmSync(emptyRepo, { recursive: true, force: true });
-    }
+    return await fn();
   } finally {
-    delete process.env.BUGGO_MCP_MAX_INVESTIGATIONS;
+    process.chdir(originalCwd);
+    rmSync(dir, { recursive: true, force: true });
   }
+}
+
+test('buggo_investigate rejects calls past the configured per-session limit', async () => {
+  await withTempCwd(async () => {
+    process.env.BUGGO_MCP_MAX_INVESTIGATIONS = '2';
+    try {
+      const server = createBuggoMcpServer();
+      const client = new Client({ name: 'test-client', version: '0.0.0' });
+      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+      await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+
+      const emptyRepo = mkdtempSync(join(tmpdir(), 'buggo-mcp-limit-repo-'));
+      try {
+        const args = { repository: emptyRepo, description: 'anything' };
+
+        const first = (await client.callTool({ name: 'buggo_investigate', arguments: args })) as any;
+        assert.equal(first.isError, true, 'empty repo investigation fails (no candidates), but still counts');
+
+        const second = (await client.callTool({ name: 'buggo_investigate', arguments: args })) as any;
+        assert.equal(second.isError, true);
+
+        const third = (await client.callTool({ name: 'buggo_investigate', arguments: args })) as any;
+        assert.equal(third.isError, true);
+        const thirdText = JSON.parse(third.content[0].text);
+        assert.match(thirdText.error, /Session investigation limit reached/);
+      } finally {
+        rmSync(emptyRepo, { recursive: true, force: true });
+      }
+    } finally {
+      delete process.env.BUGGO_MCP_MAX_INVESTIGATIONS;
+    }
+  });
 });
