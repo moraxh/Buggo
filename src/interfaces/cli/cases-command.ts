@@ -5,22 +5,38 @@
 import { listCases, loadCase } from '../../storage/case-store.js';
 import { toAgentJsonString } from '../json/format.js';
 import { renderCaseResult } from './detective-render.js';
-import { parseFormatFlag, extractPositionals, SHOW_VALUE_FLAGS, ArgsError } from './args.js';
+import { parseFormatFlag, parseCasesFilters, extractPositionals, SHOW_VALUE_FLAGS, ArgsError } from './args.js';
 
 const DEFAULT_CASES_SHOWN = 50;
 
-export function runCasesCommand(): number {
-  const cases = listCases({ limit: DEFAULT_CASES_SHOWN });
+export function runCasesCommand(argv: string[] = []): number {
+  let filters;
+  try {
+    filters = parseCasesFilters(argv);
+  } catch (err) {
+    if (err instanceof ArgsError) {
+      console.error(err.message);
+      return 2;
+    }
+    throw err;
+  }
+
+  const limit = filters.limit ?? DEFAULT_CASES_SHOWN;
+  const cases = listCases({ ...filters, limit });
   if (cases.length === 0) {
-    console.log('No cases yet. Run: buggo investigate "<description>"');
+    console.log(
+      Object.keys(filters).length > 0
+        ? 'No cases match those filters.'
+        : 'No cases yet. Run: buggo investigate "<description>"'
+    );
     return 0;
   }
   for (const c of cases) {
     const suspect = c.topSuspect ? ` -> ${c.topSuspect}` : '';
     console.log(`${c.caseId}  ${c.status.padEnd(10)} ${c.description.slice(0, 60)}${suspect}`);
   }
-  if (cases.length === DEFAULT_CASES_SHOWN) {
-    console.log(`\n(showing the ${DEFAULT_CASES_SHOWN} most recent cases; see .buggo/cases/ for the full history)`);
+  if (cases.length === limit) {
+    console.log(`\n(showing the ${limit} most recent matching cases; see .buggo/cases/ for the full history)`);
   }
   return 0;
 }

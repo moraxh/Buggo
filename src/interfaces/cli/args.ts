@@ -47,6 +47,55 @@ const INVESTIGATE_VALUE_FLAGS = new Set(['--error', '--stack', '--test', '--repo
 /** Every flag show accepts that consumes the following token as its value. */
 export const SHOW_VALUE_FLAGS = new Set(['--format']);
 
+/** Every flag cases accepts that consumes the following token as its value. */
+export const CASES_VALUE_FLAGS = new Set(['--status', '--since', '--search', '--limit']);
+
+const VALID_STATUSES = new Set(['OPEN', 'SCANNING', 'LOCALIZING', 'LOCALIZED', 'FAILED']);
+
+export type CasesFilters = {
+  status?: 'OPEN' | 'SCANNING' | 'LOCALIZING' | 'LOCALIZED' | 'FAILED';
+  since?: Date;
+  search?: string;
+  limit?: number;
+};
+
+/** --since accepts anything Date can parse (e.g. "2026-09-01"); rejects garbage rather than silently matching nothing. */
+export function parseCasesFilters(argv: string[]): CasesFilters {
+  const filters: CasesFilters = {};
+
+  const status = readFlagValue(argv, '--status');
+  if (status !== undefined) {
+    const upper = status.toUpperCase();
+    if (!VALID_STATUSES.has(upper)) {
+      throw new ArgsError(`--status must be one of ${[...VALID_STATUSES].join(', ')}, got "${status}"`);
+    }
+    filters.status = upper as CasesFilters['status'];
+  }
+
+  const since = readFlagValue(argv, '--since');
+  if (since !== undefined) {
+    const parsed = new Date(since);
+    if (Number.isNaN(parsed.getTime())) {
+      throw new ArgsError(`--since must be a valid date, got "${since}"`);
+    }
+    filters.since = parsed;
+  }
+
+  const search = readFlagValue(argv, '--search');
+  if (search !== undefined) filters.search = search;
+
+  const limit = readFlagValue(argv, '--limit');
+  if (limit !== undefined) {
+    const parsed = Number(limit);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      throw new ArgsError(`--limit must be a positive integer, got "${limit}"`);
+    }
+    filters.limit = parsed;
+  }
+
+  return filters;
+}
+
 /**
  * Extracts positional (non-flag) arguments, skipping each known value
  * flag's value along with the flag itself. Driven by an explicit

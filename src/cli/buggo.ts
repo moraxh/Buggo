@@ -12,7 +12,7 @@ switch (command) {
     break;
   }
   case 'cases': {
-    process.exit(runCasesCommand());
+    process.exit(runCasesCommand(rest));
     break;
   }
   case 'show': {
@@ -33,7 +33,7 @@ switch (command) {
       [
         'Usage:',
         '  buggo investigate "<description>" [--error <text>] [--stack <file|text>] [--test <name>] [--repo <path>] [--format human|json]',
-        '  buggo cases',
+        '  buggo cases [--status <status>] [--since <date>] [--search <text>] [--limit <n>]',
         '  buggo show <caseId> [--format human|json]',
         '  buggo config set-key <api-key>',
         '  buggo config show',
