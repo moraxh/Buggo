@@ -10,11 +10,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npm run build
-      - run: npm test
+          cache: pnpm
+      # --frozen-lockfile fails the build if package.json and
+      # pnpm-lock.yaml disagree, instead of silently re-resolving.
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run typecheck
+      - run: pnpm run build
+      - run: pnpm test
+      # Fails the build on a known high/critical vulnerability instead of
+      # letting it pass unnoticed.
+      - run: pnpm audit --audit-level=high

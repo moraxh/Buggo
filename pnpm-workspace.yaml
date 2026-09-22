@@ -1,0 +1,23 @@
+# Supply-chain hardening (see README's "Security" section for the full rationale).
+
+# Refuse to install a package version published more recently than this many
+# minutes ago. Blocks the common attack pattern where a compromised package
+# (via a stolen maintainer token, a typosquat, etc.) is published and pulled
+# by automated installs before it's detected and unpublished/deprecated.
+minimumReleaseAge: 1440
+
+# Exceptions: packages whose latest release is trusted immediately despite
+# being newer than minimumReleaseAge (e.g. a first-party release you just
+# published yourself, or a security patch you've reviewed and want now).
+minimumReleaseAgeExclude: []
+
+# Only these packages are allowed to run install-time scripts
+# (preinstall/install/postinstall). Everything else is silently skipped -
+# most supply-chain malware in npm packages runs via postinstall. Add to
+# this list only for a package whose install script you've checked and that
+# is known to need one (native addon builds, etc).
+onlyBuiltDependencies:
+  - tree-sitter
+  - tree-sitter-javascript
+  - tree-sitter-python
+  - tree-sitter-typescript

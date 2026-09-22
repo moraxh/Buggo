@@ -58,11 +58,20 @@ Given a bug report (description, and optionally an error message, stack trace, o
 
 ## Installation
 
+Buggo uses [pnpm](https://pnpm.io) (not npm/yarn) — the lockfile and the supply-chain policies in `pnpm-workspace.yaml` are pnpm-specific.
+
 ```bash
 cd Buggo
-npm install
+pnpm install
 cp .env.example .env
 # edit .env and set JEV_AI_KEY (an OpenRouter API key, not a TypeSafe key directly)
+```
+
+To use `buggo` as a global command (not just via `pnpm run`):
+
+```bash
+pnpm run build
+npm link   # registers the built dist/cli/buggo.js as a global `buggo` command
 ```
 
 ## CLI
@@ -107,7 +116,7 @@ buggo investigate "checkout fails when cart is empty" --repo . --format json
 Two options:
 
 - **Programmatic API**: `import { investigate } from 'buggo'` — `investigate(input): Promise<Case>` is the canonical entry point; everything else (CLI, MCP server) calls it.
-- **MCP server**: `npm run mcp` starts a stdio MCP server exposing a single tool, `buggo_investigate`, that takes `{ repository, description, errorMessage?, stackTrace?, failingTest? }` and returns the same structured result as `--format json`.
+- **MCP server**: `pnpm run mcp` starts a stdio MCP server exposing a single tool, `buggo_investigate`, that takes `{ repository, description, errorMessage?, stackTrace?, failingTest? }` and returns the same structured result as `--format json`. Capped at 20 investigations per server session by default (`BUGGO_MCP_MAX_INVESTIGATIONS`).
 
 ## Architecture
 
@@ -133,6 +142,18 @@ Two options:
 ## Privacy / local repository behavior
 
 Buggo runs entirely against your local filesystem. The only network calls it makes are to OpenRouter's Decisions API, sending the bug report text plus AST-derived structural summaries (file names, exported symbol names, function names) — never full file contents, never the repository's git history or diffs.
+
+## Security
+
+Buggo depends on `pnpm`'s supply-chain protections, configured in `pnpm-workspace.yaml`:
+
+- **`minimumReleaseAge: 1440`** — refuses to install a package version published less than 24 hours ago. Blocks the common attack where a compromised package (stolen maintainer token, typosquat, etc.) is pulled by an automated install before the ecosystem has had a chance to detect and unpublish it.
+- **`onlyBuiltDependencies`** — only packages on this explicit list may run install-time scripts (`preinstall`/`install`/`postinstall`); everything else has its install scripts silently skipped. Most npm supply-chain malware executes via `postinstall`. Currently only the `tree-sitter*` packages (native addon builds) are listed.
+- **Exact versions, no `^`/`~` ranges** — every dependency in `package.json` is pinned to the exact version that's actually installed and tested. A `pnpm update` is always an explicit, reviewable action, never something that happens silently on the next `pnpm install`.
+- **`pnpm-lock.yaml` is committed** and CI installs with `--frozen-lockfile`, which fails the build if `package.json` and the lockfile disagree — an unreviewed dependency change can't slip in silently.
+- **`pnpm audit --audit-level=high`** runs in CI on every push/PR, failing the build on a known high/critical vulnerability in any dependency.
+
+If you need to add a dependency whose latest release is newer than 24 hours old (e.g. a security patch you've reviewed yourself), add it to `minimumReleaseAgeExclude` in `pnpm-workspace.yaml` rather than lowering `minimumReleaseAge` globally.
 
 ## Jev / provider requirements
 
