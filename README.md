@@ -18,28 +18,35 @@ AI-native bug investigation for developers and coding agents.
 
 Give Buggo a bug report and a repository. It scans the codebase, ranks the files most likely to be involved, and hands you a short, evidenced suspect list instead of a blank cursor in a 900-file repo.
 
+<div align="center">
+<img src="https://raw.githubusercontent.com/moraxh/Buggo/main/media/demo.gif" alt="buggo investigate running against a real bug, live" width="700" />
+</div>
+
+<details>
+<summary>Text transcript (same run, for screen readers or if the GIF didn't load)</summary>
+
 ```
-$ buggo investigate "MCP server does not enforce the investigation cap correctly"
+$ buggo investigate "The weekly DICIS schedule scraper is silently dropping all Salamanca campus courses" --repo /path/to/DICIS-Tracker
 
-CASE BG-0003
+CASE BG-0001
 
-MCP server does not enforce the investigation cap correctly
+The weekly DICIS schedule scraper is silently dropping all Salamanca campus courses
 
-Scanned the scene: 31 production files.
+Scanned the scene: 83 production files.
 
 ✓ Questioning the codebase: which subsystem does this look like?
-✓ Canvassing the file list for anyone who matches the description.
+✓ Canvassing the file list for anyone who matches the description. (4/4)
 ✓ Zooming in on the prime suspects, function by function.
 
 SUSPECTS
 
-01  src/interfaces/mcp/server.ts
-    Primary suspect · 96%
-    symbols: resolveMaxInvestigations, createBuggoMcpServer, runBuggoMcpServer
+01  scrapper/src/scrapers/dicis_salamanca.py
+    Primary suspect · 97%
+    symbols: is_valid_room, normalize_room, should_skip_subject, format_professor, extract_days
 
-02  src/core/investigate.ts
+02  scrapper/src/utils.py
     Weak lead · 3%
-    symbols: investigate, classifyFailureStage, toSuspects
+    symbols: clean, safe_parse_time, normalize, generate_hash, subject_id
 
 ... (3 more suspects)
 
@@ -47,10 +54,12 @@ SUSPECTS
 
 5 files recommended for investigation.
 
-Investigation 3 decisions · 1.3s · $0.0002
+Investigation 6 decisions · 2.0s · $0.0004
 ```
 
-This is real output from running `buggo investigate` against this repository (trimmed to the top 2 suspects here), not a mockup.
+</details>
+
+Real output against a real bug report, on a real repository — not a mockup.
 
 ## Quick start
 
