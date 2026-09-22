@@ -1,14 +1,12 @@
 <div align="center">
 
-<!-- Suggested asset: a small wordmark/logo (e.g. docs/buggo-logo.svg), ~120px tall, light/dark variants. None exists yet, so this hero is text-only. -->
-
 # Buggo
 
 **Every bug leaves clues.**
 
 AI-native bug investigation for developers and coding agents.
 
-[![License: ISC](https://img.shields.io/badge/license-ISC-blue.svg)](#license)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Node >=22](https://img.shields.io/badge/node-%3E%3D22-339933?logo=node.js&logoColor=white)](package.json)
 [![pnpm](https://img.shields.io/badge/package%20manager-pnpm-f69220?logo=pnpm&logoColor=white)](https://pnpm.io)
 [![CI](https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?logo=githubactions&logoColor=white)](.github/workflows/ci.yml)
@@ -18,32 +16,38 @@ AI-native bug investigation for developers and coding agents.
 Give Buggo a bug report and a repository. It scans the codebase, ranks the files most likely to be involved, and hands you a short, evidenced suspect list instead of a blank cursor in a 900-file repo.
 
 ```
-$ buggo investigate "Users are logged out after refreshing"
+$ buggo investigate "MCP server does not enforce the investigation cap correctly"
 
-CASE BG-0001
+CASE BG-0003
 
-Users are logged out after refreshing
-────────────────────────────────────────
-SCANNING THE SCENE
-68 production files
-────────────────────────────────────────
+MCP server does not enforce the investigation cap correctly
+
+Scanned the scene: 31 production files.
+
+✓ Questioning the codebase: which subsystem does this look like?
+✓ Canvassing the file list for anyone who matches the description.
+✓ Zooming in on the prime suspects, function by function.
+
 SUSPECTS
 
-01  lib/helpers/cookies.js
-    Primary suspect · 94%
-    symbols: standardBrowserEnv, write, read, remove
+01  src/interfaces/mcp/server.ts
+    Primary suspect · 96%
+    symbols: resolveMaxInvestigations, createBuggoMcpServer, runBuggoMcpServer
 
-02  sandbox/client.js
-    Weak lead · 5%
-    symbols: handleSuccess, handleFailure
+02  src/core/investigate.ts
+    Weak lead · 3%
+    symbols: investigate, classifyFailureStage, toSuspects
+
+... (3 more suspects)
 
 ✓ CASE LOCALIZED
+
 5 files recommended for investigation.
 
-Investigation  5 decisions · 1.8s · $0.0003
+Investigation 3 decisions · 1.3s · $0.0002
 ```
 
-This is real, current CLI output (`buggo investigate`, human format), not a mockup.
+This is real output from running `buggo investigate` against this repository (trimmed to the top 2 suspects here), not a mockup.
 
 ## Quick start
 
@@ -73,7 +77,7 @@ buggo investigate "checkout fails when cart is empty"
 
 Buggo opened a case, scanned the repository's production source files, and ranked the ones most likely to contain the reported behavior, using structural signal (exported symbols, function names, file paths) rather than reading full file contents.
 
-It did not prove that `cookies.js` committed the crime. It has questions.
+It did not prove that `server.ts` committed the crime. It has questions.
 
 ```
 localization ≠ confirmed root cause
@@ -100,13 +104,13 @@ buggo show <caseId> [--format human|json]
 ```json
 {
   "schemaVersion": "1",
-  "caseId": "BG-0001",
+  "caseId": "BG-0003",
   "status": "LOCALIZED",
   "suspects": [
-    { "rank": 1, "path": "src/auth/session.ts", "confidence": 0.87, "symbols": ["isExpired", "refreshSession"] }
+    { "rank": 1, "path": "src/interfaces/mcp/server.ts", "confidence": 0.96, "symbols": ["resolveMaxInvestigations", "createBuggoMcpServer"] }
   ],
-  "costs": { "jevCalls": 7, "costUsd": 0.0004 },
-  "recommendedNextActions": ["Inspect src/auth/session.ts first (rank 1, confidence 0.87)."]
+  "costs": { "jevCalls": 3, "costUsd": 0.0002 },
+  "recommendedNextActions": ["Inspect src/interfaces/mcp/server.ts first (rank 1, confidence 0.96)."]
 }
 ```
 
@@ -117,7 +121,7 @@ For programmatic use inside a larger tool, `investigate()` is the same entry poi
 ```ts
 import { investigate } from 'buggo';
 
-const kase = await investigate({
+const result = await investigate({
   repoRoot: '.',
   report: { description: 'checkout fails when cart is empty' },
 });
@@ -153,7 +157,7 @@ Throwing away the culprit before the investigation begins is generally considere
 
 ## Does this actually work?
 
-We wondered too. The frozen V3 pipeline was run, unmodified, against 100 fresh BugsJS bugs with zero overlap with any bug used to develop it:
+We wondered too. Buggo's file-ranking pipeline was benchmarked against 100 real-world BugsJS bugs, none of which were used while building the pipeline:
 
 | Metric | Result |
 |---|---|
@@ -164,7 +168,7 @@ We wondered too. The frozen V3 pipeline was run, unmodified, against 100 fresh B
 
 Given a known bug report, can Buggo rank the file containing the eventual fix highly? That's what this measures. It does **not** measure autonomous discovery of unknown bugs, root-cause proof, or repair — Buggo doesn't do any of those yet.
 
-One surprisingly strong clue: file paths alone (no AST symbols, no subsystem classification) reached 76% Top-1 on the same sample. Structural evidence adds a real but modest improvement, concentrated in small-to-medium repositories with several similarly plausible files. Full methodology, per-project breakdowns, and failure analysis live in the project's research reports (not in this README).
+One surprisingly strong clue: file paths alone (no AST symbols, no subsystem classification) reached 76% Top-1 on the same 100 bugs. The structural evidence Buggo adds on top gives a real but modest improvement, concentrated in small-to-medium repositories with several similarly plausible files.
 
 ## Limitations
 
@@ -205,7 +209,7 @@ pnpm test            # node --test
 
 ## Research
 
-Buggo's localization pipeline came out of a multi-phase benchmark investigating whether a cheap decision model can narrow the search space for software fault localization, evaluated on real BugsJS bugs with pre-declared, adversarial replication phases. Full reports and raw results live alongside the research repository this project grew out of.
+Buggo's localization pipeline came out of a research project investigating whether a cheap decision model can narrow the search space for software fault localization, evaluated on real BugsJS bugs.
 
 ## Project status
 
@@ -213,7 +217,7 @@ Early (v0.1). The localization pipeline (`investigate`, `cases`, `show`, JSON ou
 
 ## License
 
-ISC. See `package.json`; a standalone `LICENSE` file is not yet committed.
+[Apache License 2.0](LICENSE).
 
 ---
 
