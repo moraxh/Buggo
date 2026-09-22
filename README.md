@@ -1,8 +1,21 @@
+<div align="center">
+
+<!-- Suggested asset: a small wordmark/logo (e.g. docs/buggo-logo.svg), ~120px tall, light/dark variants. None exists yet, so this hero is text-only. -->
+
 # Buggo
 
-**Give your coding agent a detective.**
+**Every bug leaves clues.**
 
-Buggo investigates a reported bug and narrows a repository down to the files most worth inspecting — before you or a coding agent spend expensive reasoning searching the whole codebase.
+AI-native bug investigation for developers and coding agents.
+
+[![License: ISC](https://img.shields.io/badge/license-ISC-blue.svg)](#license)
+[![Node >=22](https://img.shields.io/badge/node-%3E%3D22-339933?logo=node.js&logoColor=white)](package.json)
+[![pnpm](https://img.shields.io/badge/package%20manager-pnpm-f69220?logo=pnpm&logoColor=white)](https://pnpm.io)
+[![CI](https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?logo=githubactions&logoColor=white)](.github/workflows/ci.yml)
+
+</div>
+
+Give Buggo a bug report and a repository. It scans the codebase, ranks the files most likely to be involved, and hands you a short, evidenced suspect list instead of a blank cursor in a 900-file repo.
 
 ```
 $ buggo investigate "Users are logged out after refreshing"
@@ -10,169 +23,198 @@ $ buggo investigate "Users are logged out after refreshing"
 CASE BG-0001
 
 Users are logged out after refreshing
-
 ────────────────────────────────────────
-
 SCANNING THE SCENE
-
 68 production files
-
 ────────────────────────────────────────
-
 SUSPECTS
 
 01  lib/helpers/cookies.js
-    Primary suspect
-    94%
-    symbols: standardBrowserEnv, write, read, remove, nonStandardBrowserEnv
+    Primary suspect · 94%
+    symbols: standardBrowserEnv, write, read, remove
 
 02  sandbox/client.js
-    Weak lead
-    5%
+    Weak lead · 5%
     symbols: handleSuccess, handleFailure
 
-────────────────────────────────────────
-
-CASE LOCALIZED
-
+✓ CASE LOCALIZED
 5 files recommended for investigation.
 
 Investigation  5 decisions · 1.8s · $0.0003
 ```
 
-## What Buggo does
+This is real, current CLI output (`buggo investigate`, human format), not a mockup.
 
-Given a bug report (description, and optionally an error message, stack trace, or failing test) and a local repository, Buggo:
+## Quick start
 
-1. Scans the repository's production source files and extracts structural signal (exports, function/method names) via AST parsing — never full file contents.
-2. Classifies the likely subsystem (auth, database, api, async/concurrency, ...) as context.
-3. Ranks every candidate file's likelihood of containing the bug's root cause, using [Jev](https://openrouter.ai) (TypeSafe AI's "System One" model) as a cheap decision layer. Large repositories are chunked so every candidate gets a real judgment — nothing is silently dropped by an arbitrary prefilter.
-4. Ranks functions within the top-ranked files.
-5. Returns the top suspects with the evidence behind each one, and never claims more confidence than the model actually expressed.
-
-## What Buggo does NOT do (yet)
-
-- **It does not find bugs you haven't reported.** `buggo hunt` (blind autonomous bug discovery across a whole repo) is reserved for a future version and is not implemented.
-- **It does not reproduce, patch, or verify fixes.** v0.1 stops at localization — a ranked list of suspects — not a confirmed root cause. A suspect is never called a "culprit" until an actual defect has been reproduced, which v0.1 does not do.
-- **It is not a coding agent.** Buggo is debugging infrastructure a coding agent (or a human) uses before spending expensive reasoning across an entire repository, not a replacement for one.
-
-## Installation
-
-Buggo uses [pnpm](https://pnpm.io) (not npm/yarn) — the lockfile and the supply-chain policies in `pnpm-workspace.yaml` are pnpm-specific.
+Buggo isn't on the npm registry yet (`buggo` is already taken by an unrelated package) — run it from source with [pnpm](https://pnpm.io):
 
 ```bash
+git clone https://github.com/moraxh/Buggo.git
 cd Buggo
 pnpm install
 cp .env.example .env
-# edit .env and set JEV_AI_KEY (an OpenRouter API key, not a TypeSafe key directly)
+# edit .env and set JEV_AI_KEY — an OpenRouter API key, get one at openrouter.ai/keys
 ```
 
-To use `buggo` as a global command (not just via `pnpm run`):
+```bash
+pnpm run investigate "checkout fails when cart is empty" --repo /path/to/your/repo
+```
+
+Or build once and use `buggo` as a normal command:
 
 ```bash
 pnpm run build
-npm link   # registers the built dist/cli/buggo.js as a global `buggo` command
+npm link   # registers dist/cli/buggo.js as a global `buggo` command
+buggo investigate "checkout fails when cart is empty"
 ```
 
-## CLI
+## What just happened?
+
+Buggo opened a case, scanned the repository's production source files, and ranked the ones most likely to contain the reported behavior, using structural signal (exported symbols, function names, file paths) rather than reading full file contents.
+
+It did not prove that `cookies.js` committed the crime. It has questions.
+
+```
+localization ≠ confirmed root cause
+```
+
+A suspect stays a suspect until you, or a coding agent, actually reproduces the bug in that file. Buggo narrows the search — it doesn't close the case for you.
+
+## Why Buggo?
+
+Coding agents are good at reasoning once they know where to look. Finding that "where" in a large, unfamiliar repository burns context, tool calls, and time before any real debugging starts.
+
+Buggo is meant to run first and cheap: turn a bug report into a short, ranked list of files worth investigating, so the expensive reasoning (yours or an agent's) gets spent in the right place.
+
+## For humans and agents
 
 ```bash
 buggo investigate "<description>" [--error <text>] [--stack <file|text>] [--test <name>] [--repo <path>] [--format human|json]
-buggo cases
+buggo cases [--status <status>] [--since <date>] [--search <text>] [--limit <n>]
 buggo show <caseId> [--format human|json]
 ```
 
-- `--repo` defaults to the current directory.
-- `--stack` accepts either a literal stack trace string or a path to a file containing one.
-- Every investigation is persisted locally to `.buggo/cases/<caseId>.json` — no database, no cloud state, no accounts.
-
-## JSON interface
-
-`--format json` is a first-class interface, not an afterthought: stdout is valid JSON and nothing else (no spinners, no color, no prose), with a stable `schemaVersion`.
-
-```bash
-buggo investigate "checkout fails when cart is empty" --repo . --format json
-```
+`--format json` is a first-class interface, not an afterthought: stdout is valid JSON and nothing else (no spinners, no color), with a stable `schemaVersion`.
 
 ```json
 {
   "schemaVersion": "1",
   "caseId": "BG-0001",
   "status": "LOCALIZED",
-  "report": { "description": "...", "errorMessage": null, "stackTrace": null, "failingTest": null },
-  "repository": { "root": ".", "productionFileCount": 842 },
   "suspects": [
-    { "rank": 1, "path": "src/auth/session.ts", "confidence": 0.87, "symbols": ["isExpired", "refreshSession"], "evidence": [...] }
+    { "rank": 1, "path": "src/auth/session.ts", "confidence": 0.87, "symbols": ["isExpired", "refreshSession"] }
   ],
   "costs": { "jevCalls": 7, "costUsd": 0.0004 },
-  "timingsMs": { "total": 1800 },
-  "recommendedNextActions": ["Inspect src/auth/session.ts first (rank 1, confidence 0.87)."],
-  "error": null
+  "recommendedNextActions": ["Inspect src/auth/session.ts first (rank 1, confidence 0.87)."]
 }
 ```
 
-## Using Buggo from an AI agent
+Humans get suspects. Agents get JSON. Everybody reads fewer files.
 
-Two options:
+For programmatic use inside a larger tool, `investigate()` is the same entry point both the CLI and the MCP server call:
 
-- **Programmatic API**: `import { investigate } from 'buggo'` — `investigate(input): Promise<Case>` is the canonical entry point; everything else (CLI, MCP server) calls it.
-- **MCP server**: `pnpm run mcp` starts a stdio MCP server exposing a single tool, `buggo_investigate`, that takes `{ repository, description, errorMessage?, stackTrace?, failingTest? }` and returns the same structured result as `--format json`. Capped at 20 investigations per server session by default (`BUGGO_MCP_MAX_INVESTIGATIONS`).
+```ts
+import { investigate } from 'buggo';
 
-## Architecture
-
-```
-            BUGGO ENGINE (core/investigate.ts)
-                      │
-         ┌────────────┴────────────┐
-         │                         │
-   Human CLI                  Agent surfaces
-   (detective rendering)      (--format json, MCP)
-         │                         │
-         └────────────┬────────────┘
-                       │
-                  same Case
+const kase = await investigate({
+  repoRoot: '.',
+  report: { description: 'checkout fails when cart is empty' },
+});
 ```
 
-- `core/` — domain model (`Case`, `BugReport`, `Suspect`, `Evidence`, ...) and the `investigate()` entry point. No terminal rendering, no JSON-shaping logic.
-- `providers/jev/` — `DecisionEngine` abstraction over the Jev API, so the pipeline isn't hard-coupled to one provider/model/endpoint.
-- `investigation/`, `repo/`, `jev/` — the validated V3 localization pipeline (chunked file ranking, AST-based symbol extraction, subsystem classification), ported unmodified from the research prototype.
-- `interfaces/cli/`, `interfaces/json/`, `interfaces/mcp/` — presentation only, built on top of the same `Case`.
-- `storage/` — local case persistence (`.buggo/cases/`).
+### MCP server
 
-## Privacy / local repository behavior
+`pnpm run mcp` starts a stdio MCP server exposing one tool, `buggo_investigate`, taking `{ repository, description, errorMessage?, stackTrace?, failingTest? }` and returning the same structured result as `--format json`. Capped at 20 investigations per server session by default (`BUGGO_MCP_MAX_INVESTIGATIONS`).
 
-Buggo runs entirely against your local filesystem. The only network calls it makes are to OpenRouter's Decisions API, sending the bug report text plus AST-derived structural summaries (file names, exported symbol names, function names) — never full file contents, never the repository's git history or diffs.
+## How it works
 
-## Security
+```
+bug report
+    ↓
+repository scan (AST-derived symbols, never full file contents)
+    ↓
+subsystem classification
+    ↓
+chunked file ranking
+    ↓
+function ranking within top files
+    ↓
+ranked suspects + evidence
+```
 
-Buggo depends on `pnpm`'s supply-chain protections, configured in `pnpm-workspace.yaml`:
+Ranking is done by [Jev](https://openrouter.ai) (TypeSafe AI's "System One" model, reached through OpenRouter's Decisions API) — a cheap decision layer, not a chat model, asked to pick or score candidates rather than generate prose.
 
-- **`minimumReleaseAge: 1440`** — refuses to install a package version published less than 24 hours ago. Blocks the common attack where a compromised package (stolen maintainer token, typosquat, etc.) is pulled by an automated install before the ecosystem has had a chance to detect and unpublish it.
-- **`onlyBuiltDependencies`** — only packages on this explicit list may run install-time scripts (`preinstall`/`install`/`postinstall`); everything else has its install scripts silently skipped. Most npm supply-chain malware executes via `postinstall`. Currently only the `tree-sitter*` packages (native addon builds) are listed.
-- **Exact versions, no `^`/`~` ranges** — every dependency in `package.json` is pinned to the exact version that's actually installed and tested. A `pnpm update` is always an explicit, reviewable action, never something that happens silently on the next `pnpm install`.
-- **`pnpm-lock.yaml` is committed** and CI installs with `--frozen-lockfile`, which fails the build if `package.json` and the lockfile disagree — an unreviewed dependency change can't slip in silently.
-- **`pnpm audit --audit-level=high`** runs in CI on every push/PR, failing the build on a known high/critical vulnerability in any dependency.
+### Chunking
 
-If you need to add a dependency whose latest release is newer than 24 hours old (e.g. a security patch you've reviewed yourself), add it to `minimumReleaseAgeExclude` in `pnpm-workspace.yaml` rather than lowering `minimumReleaseAge` globally.
+Large repositories don't get a heuristic pre-filter that quietly drops most of the codebase before judgment happens. Every candidate file is placed into a deterministic chunk and actually evaluated; a finalist round re-ranks the survivors.
 
-## Jev / provider requirements
+Throwing away the culprit before the investigation begins is generally considered poor detective work.
 
-An OpenRouter API key (`JEV_AI_KEY` in `.env`) is required. Each investigation costs a small fraction of a cent (typically under $0.001 for a small-to-medium repository).
+## Does this actually work?
+
+We wondered too. The frozen V3 pipeline was run, unmodified, against 100 fresh BugsJS bugs with zero overlap with any bug used to develop it:
+
+| Metric | Result |
+|---|---|
+| File Top-1 | 80% [71–87%, 95% CI] |
+| File Top-3 | 90% |
+| File Top-5 | 91% |
+| File Top-10 | 96% |
+
+Given a known bug report, can Buggo rank the file containing the eventual fix highly? That's what this measures. It does **not** measure autonomous discovery of unknown bugs, root-cause proof, or repair — Buggo doesn't do any of those yet.
+
+One surprisingly strong clue: file paths alone (no AST symbols, no subsystem classification) reached 76% Top-1 on the same sample. Structural evidence adds a real but modest improvement, concentrated in small-to-medium repositories with several similarly plausible files. Full methodology, per-project breakdowns, and failure analysis live in the project's research reports (not in this README).
 
 ## Limitations
 
-- v0.1 only localizes bugs you already know about (a report you provide) — it does not discover unknown bugs.
-- Confidence scores come directly from Jev's `choice` primitive; they reflect the model's calibration, not a guarantee of correctness. A suspect remains a suspect until you or a coding agent confirms it.
-- Very large repositories (1000+ candidate files) require more Jev calls (chunking); cost stays low, but latency scales with candidate count.
+- Buggo localizes bugs you already know about. It does not discover unknown bugs autonomously — `buggo hunt` is planned, not implemented.
+- Rankings are hypotheses, not proof. Confidence scores reflect Jev's calibration, not a correctness guarantee.
+- Function-level ranking (which function inside a suspect file) is meaningfully weaker than file-level ranking.
+- Buggo does not reproduce, patch, or verify fixes. That step still belongs to you or a coding agent.
+
+In short: Buggo is a detective, not a clairvoyant.
+
+## Security
+
+Buggo runs entirely against your local filesystem. The only network calls are to OpenRouter's Decisions API, sending the bug report text plus AST-derived structural summaries — never full file contents, never git history or diffs.
+
+Dependencies are hardened via `pnpm-workspace.yaml`:
+
+- **`minimumReleaseAge: 1440`** — refuses packages published in the last 24 hours, closing the window used by compromised-package attacks.
+- **`onlyBuiltDependencies`** — only an explicit allowlist (the `tree-sitter*` native addons) may run install scripts; everything else has them silently skipped.
+- **Exact versions, no ranges** — every dependency is pinned; `pnpm update` is always explicit.
+- **`pnpm-lock.yaml` is committed**, CI installs with `--frozen-lockfile`, and `pnpm audit --audit-level=high` runs on every push.
+
+## Configuration
+
+- `JEV_AI_KEY` (`.env` or environment) — an OpenRouter API key. Required.
+- `buggo config set-key <key>` / `buggo config show` — persist a key at `~/.config/buggo/config.json` (mode 600) instead of using `.env`.
+- `BUGGO_MCP_MAX_INVESTIGATIONS` — cap on investigations per MCP server session (default 20).
+
+Each investigation typically costs under $0.001 in Jev calls.
+
+## Development
+
+```bash
+pnpm install
+pnpm run build       # tsc
+pnpm run typecheck   # tsc --noEmit
+pnpm test            # node --test
+```
 
 ## Research
 
-Buggo's localization pipeline is the direct output of a multi-phase research benchmark validating whether Jev can act as a cheap search-space-narrowing layer for debugging. Independent, non-overlapping-sample validation (Phase 3B, 100 fresh BugsJS bugs):
+Buggo's localization pipeline came out of a multi-phase benchmark investigating whether a cheap decision model can narrow the search space for software fault localization, evaluated on real BugsJS bugs with pre-declared, adversarial replication phases. Full reports and raw results live alongside the research repository this project grew out of.
 
-```
-File Top-1: 80% [71-87%, 95% CI]
-File Top-3: 90%
-File Top-5: 91%
-```
+## Project status
 
-These numbers measure **file localization given a known bug report** — they do not measure autonomous bug discovery. Full methodology and all phase reports: see `../results/` and `../CLAUDE.md` in the parent repository.
+Early (v0.1). The localization pipeline (`investigate`, `cases`, `show`, JSON output, MCP server) is implemented and benchmarked. `buggo hunt` (blind bug discovery) and repair/verification are not.
+
+## License
+
+ISC. See `package.json`; a standalone `LICENSE` file is not yet committed.
+
+---
+
+Every bug leaves clues.
