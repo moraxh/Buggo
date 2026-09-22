@@ -63,7 +63,7 @@ export type CallLogEntry = {
   cached: boolean;
 };
 
-class BugBudgetExceededError extends Error {}
+export class BugBudgetExceededError extends Error {}
 
 export class JevClient {
   private callLog: CallLogEntry[] = [];

@@ -44,7 +44,7 @@ export async function investigate(input: InvestigateInput): Promise<Case> {
 
   try {
     const result = await investigateV3(
-      engine.raw(),
+      engine,
       {
         bug_id: caseId,
         bug_description: input.report.description,
@@ -60,7 +60,7 @@ export async function investigate(input: InvestigateInput): Promise<Case> {
       schemaVersion: '1',
       caseId,
       createdAt,
-      status: 'LOCALIZED',
+      status: result.functionRankingIncomplete ? 'PARTIAL' : 'LOCALIZED',
       report: input.report,
       repository: {
         root: input.repoRoot,
@@ -79,7 +79,14 @@ export async function investigate(input: InvestigateInput): Promise<Case> {
       })),
       costs: { jevCalls: totals.calls, costUsd: totals.cost },
       timingsMs: { total: Date.now() - start },
-      error: null,
+      error: result.functionRankingIncomplete
+        ? {
+            message:
+              'Function-level ranking (Phase C) was skipped: the per-bug call/cost budget ran out. ' +
+              'File-level suspects below are still real Jev judgments, just without function-level refinement.',
+            stage: 'localization',
+          }
+        : null,
     };
   } catch (err) {
     const totals = engine.getTotals();

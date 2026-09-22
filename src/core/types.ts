@@ -8,6 +8,7 @@ export type CaseStatus =
   | 'SCANNING'
   | 'LOCALIZING'
   | 'LOCALIZED'
+  | 'PARTIAL'
   | 'FAILED';
 // Reserved for later versions (not reachable in v0.1):
 // INVESTIGATING | REPRODUCED | VERIFIED | CLOSED

@@ -81,9 +81,13 @@ export function renderCaseResult(kase: Case): string {
 
   out.push(DIVIDER);
   out.push('');
-  out.push('CASE LOCALIZED');
+  out.push(kase.status === 'PARTIAL' ? 'CASE PARTIALLY LOCALIZED' : 'CASE LOCALIZED');
   out.push('');
   out.push(`${suspects.length} files recommended for investigation.`);
+  if (kase.status === 'PARTIAL' && kase.error) {
+    out.push('');
+    out.push(dim(kase.error.message));
+  }
   out.push('');
   out.push(
     dim(
