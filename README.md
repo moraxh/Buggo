@@ -312,7 +312,7 @@ pnpm test            # node --test
 
 ## Project status
 
-Early (v0.1). The localization pipeline (`investigate`, `cases`, `show`, JSON output, MCP server) is implemented and benchmarked. `buggo hunt` (blind bug triage) is implemented and validated as v0, with a known bias disclosed above. Repair/verification is not implemented.
+Early (v0.2). The localization pipeline (`investigate`, `cases`, `show`, JSON output, MCP server) is implemented and benchmarked. `buggo hunt` (blind bug triage) is implemented and validated as v0, with a known bias disclosed above. Repair/verification is not implemented.
 
 ## License
 
