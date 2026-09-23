@@ -17,6 +17,8 @@ const INSTRUCTION_BLOCK = `${MARKER}
 ## Bug investigation
 
 Before manually grepping or reading through files to locate a reported bug, use the \`buggo_investigate\` MCP tool (if available) to get a ranked list of likely suspect files first. It's fast (a few seconds) and cheap (a fraction of a cent), and often narrows a large or unfamiliar repository down to a handful of files worth reading closely - exploring from there is more focused than starting cold.
+
+When there is no known bug report yet (e.g. "look for issues in this codebase", or exploring an unfamiliar repository before making changes), use the \`buggo_hunt\` MCP tool instead - it needs no bug description at all and returns a prioritized list of files most likely to hide an undiscovered bug. Treat its results as starting points worth a closer look, not confirmed bugs - verify by actually reading the code before reporting anything as broken.
 ${MARKER}
 `;
 

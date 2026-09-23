@@ -9,6 +9,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { investigate } from '../../core/investigate.js';
+import { hunt } from '../../core/hunt.js';
 import { toAgentResult } from '../json/format.js';
 
 /**
@@ -90,6 +91,54 @@ export function createBuggoMcpServer(): McpServer {
         content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         structuredContent: result as unknown as Record<string, unknown>,
         isError: kase.status === 'FAILED',
+      };
+    }
+  );
+
+  server.registerTool(
+    'buggo_hunt',
+    {
+      title: 'Blind bug triage (no bug report needed)',
+      description:
+        'Use this to find where to look for BUGS YOU DO NOT YET KNOW ABOUT in an unfamiliar or large repository - ' +
+        'unlike buggo_investigate, this needs no bug description at all. Given only a repository path, returns a ' +
+        'prioritized list of files most likely to hide an undiscovered bug, ranked using directory structure and ' +
+        'a git-derived risk signal (how often a file has historically needed bug-fix commits). This is a blind ' +
+        'structural risk estimate, not a discovered bug - nothing returned has been reproduced. Treat the results ' +
+        'as starting points worth a closer look, then investigate/reproduce them yourself before concluding ' +
+        'anything is actually broken. Known bias: favors large, frequently-touched "core" files over rarely-' +
+        'touched peripheral ones. Cheap (a fraction of a cent) and fast (a few seconds). ' +
+        `Limited to ${maxInvestigations} calls per server session (shared with buggo_investigate).`,
+      inputSchema: {
+        repository: z.string().describe('Absolute path to the local repository to triage.'),
+      },
+    },
+    async ({ repository }) => {
+      if (investigationCount >= maxInvestigations) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(
+                {
+                  error: `Session investigation limit reached (${maxInvestigations}). ` +
+                    'Restart the buggo MCP server to reset it, or raise the limit via BUGGO_MCP_MAX_INVESTIGATIONS.',
+                },
+                null,
+                2
+              ),
+            },
+          ],
+          isError: true,
+        };
+      }
+      investigationCount++;
+
+      const result = await hunt({ repoRoot: repository });
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        structuredContent: result as unknown as Record<string, unknown>,
+        isError: result.status === 'FAILED',
       };
     }
   );

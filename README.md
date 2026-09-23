@@ -173,7 +173,7 @@ buggo init
 This does two things:
 
 1. **Registers `buggo-mcp` with whichever of Claude Code, Cursor, Windsurf, Cline, or Zed are installed** — detected automatically, each one's own config format handled correctly (merged into existing config, never overwritten).
-2. **Writes an explicit usage instruction to your project's `CLAUDE.md`/`AGENTS.md`** (whichever already exists; creates `AGENTS.md` if neither does). An agent won't reliably reach for a newly-connected MCP tool on its own — it defaults to grep/read unless told otherwise — so this is what actually gets `buggo_investigate` used instead of skipped.
+2. **Writes an explicit usage instruction to your project's `CLAUDE.md`/`AGENTS.md`** (whichever already exists; creates `AGENTS.md` if neither does). An agent won't reliably reach for a newly-connected MCP tool on its own — it defaults to grep/read unless told otherwise — so this is what actually gets `buggo_investigate`/`buggo_hunt` used instead of skipped.
 
 Idempotent — safe to run again, it won't duplicate registrations or instructions that are already there.
 
@@ -187,7 +187,12 @@ claude mcp add buggo -- buggo-mcp
 
 You still want the usage instruction in `CLAUDE.md`/`AGENTS.md` (see step 2 above) so Claude actually reaches for it instead of defaulting to grep/read.
 
-Under the hood, `buggo-mcp` (installed alongside `buggo`) starts a stdio MCP server exposing one tool, `buggo_investigate`, taking `{ repository, description, errorMessage?, stackTrace?, failingTest?, hintedFiles? }` and returning the same structured result as `--format json`. Capped at 20 investigations per server session by default (`BUGGO_MCP_MAX_INVESTIGATIONS`).
+Under the hood, `buggo-mcp` (installed alongside `buggo`) starts a stdio MCP server exposing two tools:
+
+- `buggo_investigate`, taking `{ repository, description, errorMessage?, stackTrace?, failingTest?, hintedFiles? }` and returning the same structured result as `investigate --format json`.
+- `buggo_hunt`, taking only `{ repository }` (no bug report needed) and returning the same structured result as `hunt --format json`.
+
+Both share one cap of 20 calls per server session by default (`BUGGO_MCP_MAX_INVESTIGATIONS`).
 
 #### Codex CLI
 
@@ -202,7 +207,8 @@ args = []
 ```markdown
 ## Bug fixes
 
-- When investigating a bug, use the `buggo` MCP tool (`buggo_investigate`) to help locate the files most likely responsible before diving into manual search. Treat its output as ranked suspects to verify, not a confirmed diagnosis.
+- When investigating a reported bug, use the `buggo` MCP tool (`buggo_investigate`) to help locate the files most likely responsible before diving into manual search. Treat its output as ranked suspects to verify, not a confirmed diagnosis.
+- When exploring an unfamiliar repository with no known bug report, use `buggo_hunt` instead - it needs no bug description and returns a prioritized list of files worth a closer look.
 ```
 
 If `buggo-mcp` isn't resolvable from Codex's PATH (e.g. it was installed under nvm and Codex doesn't inherit your shell's PATH), point `command` at the absolute path instead, e.g. `~/.nvm/versions/node/<version>/bin/buggo-mcp`.
