@@ -18,6 +18,10 @@ export type {
   CaseError,
 } from './core/types.js';
 
+export { hunt } from './core/hunt.js';
+export type { HuntInput } from './core/hunt.js';
+export type { HuntResult, HuntSuspect, HuntStatus } from './hunt/types.js';
+
 export { toAgentResult, toAgentJsonString } from './interfaces/json/format.js';
 export type { AgentResult, AgentSuspect, AgentEvidence, AgentError } from './interfaces/json/format.js';
 

@@ -124,6 +124,7 @@ buggo investigate "<description>" [--error <text>] [--stack <file|text>] [--test
                   [--diff <ref>] [--recent-changes <n>] [--exclude <file> ...] [--format human|json]
 buggo cases [--status <status>] [--since <date>] [--search <text>] [--limit <n>]
 buggo show <caseId> [--format human|json]
+buggo hunt [--repo <path>] [--format human|json]
 buggo init [--repo <path>]
 ```
 
@@ -206,6 +207,33 @@ args = []
 
 If `buggo-mcp` isn't resolvable from Codex's PATH (e.g. it was installed under nvm and Codex doesn't inherit your shell's PATH), point `command` at the absolute path instead, e.g. `~/.nvm/versions/node/<version>/bin/buggo-mcp`.
 
+## `buggo hunt` (v0, experimental)
+
+`investigate` needs a bug report. `hunt` doesn't — it triages a repository blind, with no bug description at all, ranking files by how likely they are to hide an undiscovered bug:
+
+```bash
+buggo hunt --repo /path/to/your/repo
+```
+
+It works in two stages (module-level, then file-level within the riskiest modules), using directory structure and a git-derived risk signal — how often a file has historically needed a bug-fix commit, not just how often it changed — as real evidence, instead of guessing from file naming alone.
+
+```
+HUNT BH-0001
+
+This is a blind structural risk estimate, not a discovered bug. ...
+
+TOP SUSPECTS (blind risk triage, no bug report)
+
+01  lib/router/layer.js
+    risk 74% · touched in 22 of the last 500 commits, 9 of those commit messages look like bug fixes
+```
+
+**Validated before shipping, not just built:** on 100 real-world BugsJS bugs, the file that actually contained the bug fell in the riskiest 10% of the repo by this signal alone 63% of the time (vs. ~10% expected by chance). Showing the signal to Jev (instead of a naive guess from file names) raised blind file-level Top-5 triage from 10% to 60% on a 30-bug multi-project sample (p=0.0007).
+
+**Known limitation:** this signal favors large, frequently-touched "core" files simply because they get touched often for unrelated reasons (features, refactors, docs) — in a repo shaped like "many small peripheral files around one shared core" (e.g. a linter with hundreds of individual rule files), it can under-rank a bug hiding in a rarely-touched peripheral file. Two correction attempts (normalizing by file size, requiring a minimum touch count) were tried and measured to make things worse or do nothing — this is a real, disclosed trade-off, not fixed yet.
+
+`hunt` stops at file-level triage — a starting point for you or a coding agent to actually investigate, reproduce, and fix, the same as `investigate`'s suspects. It does not discover, reproduce, or confirm a bug on its own.
+
 ## How it works
 
 ```
@@ -247,7 +275,7 @@ One surprisingly strong clue: file paths alone (no AST symbols, no subsystem cla
 
 ## Limitations
 
-- Buggo localizes bugs you already know about. It does not discover unknown bugs autonomously — `buggo hunt` is planned, not implemented.
+- `investigate` localizes bugs you already know about; `hunt`'s blind triage is v0 and has a known bias toward frequently-touched "core" files (see above) — neither discovers, reproduces, or confirms a bug on its own.
 - Rankings are hypotheses, not proof. Confidence scores reflect Jev's calibration, not a correctness guarantee.
 - Function-level ranking (which function inside a suspect file) is meaningfully weaker than file-level ranking.
 - Buggo does not reproduce, patch, or verify fixes. That step still belongs to you or a coding agent.
@@ -256,7 +284,7 @@ In short: Buggo is a detective, not a clairvoyant.
 
 ## Security
 
-Buggo runs entirely against your local filesystem. The only network calls are to OpenRouter's Decisions API, sending the bug report text plus AST-derived structural summaries — never full file contents, never git history or diffs.
+Buggo runs entirely against your local filesystem. The only network calls are to OpenRouter's Decisions API, sending the bug report text plus AST-derived structural summaries — never full file contents, never a diff. `hunt` additionally sends each file's aggregate commit-touch and fix-commit counts (a count, not commit messages or diffs) as part of its blind risk signal.
 
 Dependencies are hardened via `pnpm-workspace.yaml`:
 
@@ -284,7 +312,7 @@ pnpm test            # node --test
 
 ## Project status
 
-Early (v0.1). The localization pipeline (`investigate`, `cases`, `show`, JSON output, MCP server) is implemented and benchmarked. `buggo hunt` (blind bug discovery) and repair/verification are not.
+Early (v0.1). The localization pipeline (`investigate`, `cases`, `show`, JSON output, MCP server) is implemented and benchmarked. `buggo hunt` (blind bug triage) is implemented and validated as v0, with a known bias disclosed above. Repair/verification is not implemented.
 
 ## License
 
